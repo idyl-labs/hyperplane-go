@@ -2,6 +2,9 @@
 
 # hyperplane-go
 
+[![CI](https://github.com/idyl-labs/hyperplane-go/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/idyl-labs/hyperplane-go/actions/workflows/ci.yml?query=branch%3Amain)
+[![Go Reference](https://pkg.go.dev/badge/github.com/idyl-labs/hyperplane-go.svg)](https://pkg.go.dev/github.com/idyl-labs/hyperplane-go)
+
 The Go client for Hyperplane, the authenticated connection fabric of
 [IDYL](https://idyl.network).
 
