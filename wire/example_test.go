@@ -191,7 +191,7 @@ func ExampleParseZoneAdmissionLease() {
 	_, _, err = wire.ParseZoneAdmissionLease(raw, parsed.GetNotAfterUnixS())
 	fmt.Println("expired:", errors.Is(err, wire.ErrAdmissionExpired))
 	// Output:
-	// signer: spiffe://z1.zone.example.com/service/admission-signer/control
+	// signer: spiffe://z1.zone.example.com/service/join/admission-issuer
 	// admitted: spiffe://z1.zone.example.com/subnet/subnet-a/node/node-a true
 	// adapters: [control-dock]
 	// expired: true

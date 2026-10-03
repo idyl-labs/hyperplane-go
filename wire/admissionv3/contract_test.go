@@ -35,8 +35,8 @@ func TestContractStrings(t *testing.T) {
 		{"DockProofSignatureDomain", admissionv3.DockProofSignatureDomain, "idyl-dock-proof-signature/v1\x00"},
 		{"DockContract", admissionv3.DockContract, "dock/3"},
 		{"TLSExporterLabel", admissionv3.TLSExporterLabel, "EXPORTER-IDYL-DOCK-PROOF-v1"},
-		{"ControlPlaneAdmissionSignerPath", admissionv3.ControlPlaneAdmissionSignerPath, "/service/admission-signer/control"},
-		{"DataPlaneAdmissionSignerPath", admissionv3.DataPlaneAdmissionSignerPath, "/service/admission-signer/data"},
+		{"ControlPlaneAdmissionSignerPath", admissionv3.ControlPlaneAdmissionSignerPath, "/service/join/admission-issuer"},
+		{"DataPlaneAdmissionSignerPath", admissionv3.DataPlaneAdmissionSignerPath, "/service/controller/admission-issuer"},
 	} {
 		if row.got != row.want {
 			t.Errorf("%s = %q, want %q", row.name, row.got, row.want)

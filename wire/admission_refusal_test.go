@@ -575,7 +575,7 @@ func TestValidateExpectedAdmissionSignerURIRefusals(t *testing.T) {
 	const data = apb.DataPlaneAdmissionSignerPath
 	for _, uri := range []string{
 		"",
-		"spiffe://" + goldenTrustDomain + "/service/admission-signer/other",
+		"spiffe://" + goldenTrustDomain + "/service/controller/other",
 		"spiffe://" + goldenTrustDomain + data + "/",
 		"spiffe://" + goldenTrustDomain + data + "?x=1",
 		"spiffe://" + goldenTrustDomain + data + "?",
@@ -589,7 +589,7 @@ func TestValidateExpectedAdmissionSignerURIRefusals(t *testing.T) {
 		"spiffe://z1..example.com" + data,
 		"spiffe://-z1.example.com" + data,
 		"spiffe://" + strings.Repeat("a", 64) + ".example.com" + data,
-		"spiffe://" + goldenTrustDomain + "/service/admission-signer%2Fdata",
+		"spiffe://" + goldenTrustDomain + "/service/controller%2Fadmission-issuer",
 		"spiffe://" + goldenTrustDomain + "/%zz",
 	} {
 		plane, err := wire.ValidateExpectedAdmissionSignerURI(uri)

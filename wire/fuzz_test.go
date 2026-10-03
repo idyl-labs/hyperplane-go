@@ -628,8 +628,8 @@ func FuzzValidateExpectedAdmissionSignerURI(f *testing.F) {
 		f.Add(uri)
 		f.Add(uri + "?")
 	}
-	f.Add("spiffe://example.com/service/admission-signer/other")
-	f.Add("spiffe://user@example.com:1/service/admission-signer/data#f")
+	f.Add("spiffe://example.com/service/controller/other")
+	f.Add("spiffe://user@example.com:1/service/controller/admission-issuer#f")
 
 	f.Fuzz(func(t *testing.T, uri string) {
 		plane, err := wire.ValidateExpectedAdmissionSignerURI(uri)

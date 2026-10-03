@@ -39,11 +39,11 @@ import (
 
 func TestAdmissionSignerURIDerivation(t *testing.T) {
 	control, err := wire.AdmissionSignerURIForPlane(goldenTrustDomain, mpb.Plane_PLANE_CONTROL)
-	if err != nil || control != "spiffe://"+goldenTrustDomain+"/service/admission-signer/control" {
+	if err != nil || control != "spiffe://"+goldenTrustDomain+"/service/join/admission-issuer" {
 		t.Fatalf("control authority = %q err=%v", control, err)
 	}
 	data, err := wire.AdmissionSignerURIForPlane(goldenTrustDomain, mpb.Plane_PLANE_DATA)
-	if err != nil || data != "spiffe://"+goldenTrustDomain+"/service/admission-signer/data" {
+	if err != nil || data != "spiffe://"+goldenTrustDomain+"/service/controller/admission-issuer" {
 		t.Fatalf("data authority = %q err=%v", data, err)
 	}
 	if _, err := wire.AdmissionSignerURIForPlane(goldenTrustDomain, mpb.Plane_PLANE_UNSPECIFIED); err == nil {
@@ -54,13 +54,13 @@ func TestAdmissionSignerURIDerivation(t *testing.T) {
 	}
 
 	for name, uri := range map[string]string{
-		"wrong path":       "spiffe://" + goldenTrustDomain + "/service/admission-signer",
+		"wrong path":       "spiffe://" + goldenTrustDomain + "/service/join",
 		"query":            data + "?x=1",
 		"fragment":         data + "#f",
-		"port":             "spiffe://" + goldenTrustDomain + ":443/service/admission-signer/data",
-		"userinfo":         "spiffe://user@" + goldenTrustDomain + "/service/admission-signer/data",
-		"uppercase domain": "spiffe://Z1.zone.example.com/service/admission-signer/data",
-		"http scheme":      "https://" + goldenTrustDomain + "/service/admission-signer/data",
+		"port":             "spiffe://" + goldenTrustDomain + ":443/service/controller/admission-issuer",
+		"userinfo":         "spiffe://user@" + goldenTrustDomain + "/service/controller/admission-issuer",
+		"uppercase domain": "spiffe://Z1.zone.example.com/service/controller/admission-issuer",
+		"http scheme":      "https://" + goldenTrustDomain + "/service/controller/admission-issuer",
 		"empty":            "",
 	} {
 		if _, err := wire.ValidateExpectedAdmissionSignerURI(uri); err == nil {
@@ -135,7 +135,7 @@ func TestAdmissionSignerProfileRefusals(t *testing.T) {
 
 	rows := map[string][]svidtest.SignerOption{
 		"wrong plane URI":    {validity, svidtest.WithURI(otherPlaneURI)},
-		"foreign domain URI": {validity, svidtest.WithURI("spiffe://z2.zone.example.com/service/admission-signer/data")},
+		"foreign domain URI": {validity, svidtest.WithURI("spiffe://z2.zone.example.com/service/controller/admission-issuer")},
 		"CA leaf": {validity, svidtest.WithTemplate(func(c *x509.Certificate) {
 			c.IsCA = true
 			c.KeyUsage |= x509.KeyUsageCertSign

@@ -317,7 +317,7 @@ func TestIssueAdmissionSignerRefusesBadInput(t *testing.T) {
 		t.Fatal("certificate for an unsupported key type issued")
 	}
 	unparsableSAN := svidtest.WithTemplate(func(c *x509.Certificate) {
-		c.URIs = []*url.URL{{Scheme: "spiffe", Host: "a..b", Path: "/service/admission-signer/data"}}
+		c.URIs = []*url.URL{{Scheme: "spiffe", Host: "a..b", Path: "/service/controller/admission-issuer"}}
 	})
 	if signer, err := authority.IssueAdmissionSigner(mpb.Plane_PLANE_DATA, unparsableSAN); err == nil || signer != nil {
 		t.Fatal("certificate that does not parse back was returned")
@@ -345,7 +345,7 @@ func TestSignerOptions(t *testing.T) {
 		t.Errorf("WithValidity then WithLifetime: not_after %v", ordered.Leaf.NotAfter)
 	}
 
-	const otherURI = "spiffe://zone-b.zone.example.com/service/admission-signer/data"
+	const otherURI = "spiffe://zone-b.zone.example.com/service/controller/admission-issuer"
 	uri := issue(t, authority, mpb.Plane_PLANE_DATA, svidtest.WithURI(otherURI))
 	if uri.URI != otherURI || uri.Leaf.URIs[0].String() != otherURI {
 		t.Errorf("WithURI: identity %q, leaf %v", uri.URI, uri.Leaf.URIs)
@@ -394,7 +394,7 @@ func TestOutOfProfileSignersAreRefusedByWire(t *testing.T) {
 		"P-384 key":     svidtest.WithKey(p384),
 		"CA leaf":       svidtest.WithTemplate(func(c *x509.Certificate) { c.IsCA, c.KeyUsage = true, c.KeyUsage|x509.KeyUsageCertSign }),
 		"DNS SAN":       svidtest.WithTemplate(func(c *x509.Certificate) { c.DNSNames = []string{"signer.example.com"} }),
-		"other domain":  svidtest.WithURI("spiffe://zone-b.zone.example.com/service/admission-signer/data"),
+		"other domain":  svidtest.WithURI("spiffe://zone-b.zone.example.com/service/controller/admission-issuer"),
 		"over lifetime": svidtest.WithLifetime(apb.MaxAdmissionSignerLifetime + time.Second),
 	} {
 		signer := issue(t, authority, mpb.Plane_PLANE_DATA, option)

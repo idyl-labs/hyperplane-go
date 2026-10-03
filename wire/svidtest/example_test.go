@@ -77,8 +77,8 @@ func ExampleAuthority_IssueAdmissionSigner() {
 	}
 	fmt.Println("admitted node:", payload.GetNodeId(), "signed by:", facts.URI)
 	// Output:
-	// signer: spiffe://zone-a.zone.example.com/service/admission-signer/control
+	// signer: spiffe://zone-a.zone.example.com/service/join/admission-issuer
 	// chain length: 1
 	// lifetime: 12h1m0s
-	// admitted node: node-a signed by: spiffe://zone-a.zone.example.com/service/admission-signer/control
+	// admitted node: node-a signed by: spiffe://zone-a.zone.example.com/service/join/admission-issuer
 }
