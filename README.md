@@ -89,7 +89,7 @@ before the first tagged release.
 
 ## Requirements
 
-Go 1.26.4 or later. The module depends on
+Go 1.26.6 or later. The module depends on
 [quic-go](https://github.com/quic-go/quic-go),
 [go-spiffe](https://github.com/spiffe/go-spiffe),
 [golang.org/x/crypto](https://pkg.go.dev/golang.org/x/crypto) and the Go

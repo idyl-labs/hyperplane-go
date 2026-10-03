@@ -24,6 +24,8 @@ ADDLICENSE    := github.com/google/addlicense@v1.2.0
 BUF           := github.com/bufbuild/buf/cmd/buf@v1.70.0
 PROTOC_GEN_GO := google.golang.org/protobuf/cmd/protoc-gen-go@v1.36.11
 
+FUZZTIME ?= 30s
+
 .DEFAULT_GOAL := help
 
 .PHONY: help
@@ -41,7 +43,8 @@ help:
 		'  vuln           govulncheck' \
 		'  proto          regenerate protobuf code' \
 		'  proto-check    lint protos and verify generated code is current' \
-		'  breaking       protocol changes that break compatibility with main'
+		'  breaking       protocol changes that break compatibility with main' \
+		'  fuzz           run every fuzz target for FUZZTIME (default 30s)'
 
 .PHONY: check
 check: tidy-check deps-check license-check lint proto-check test vuln
@@ -100,3 +103,17 @@ proto-check: proto
 .PHONY: breaking
 breaking:
 	go run $(BUF) breaking wire --against '.git#branch=main,subdir=wire'
+
+.PHONY: fuzz
+fuzz:
+	@set -eu; pkgs="$$(go list ./...)"; total=0; \
+	for pkg in $$pkgs; do \
+		targets="$$(go test -list '^Fuzz' $$pkg)"; \
+		for target in $$(printf '%s\n' "$$targets" | grep '^Fuzz' || true); do \
+			echo "fuzz $$pkg $$target"; \
+			go test $$pkg -run '^$$' -fuzz "^$$target$$" -fuzztime $(FUZZTIME); \
+			total=$$((total + 1)); \
+		done; \
+	done; \
+	if [ "$$total" -eq 0 ]; then echo "no fuzz targets found"; exit 1; fi; \
+	echo "fuzzed $$total targets"

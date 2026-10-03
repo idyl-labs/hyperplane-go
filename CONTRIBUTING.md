@@ -13,7 +13,7 @@ not code changes.
 
 ## Development
 
-You need Go 1.26.4 or later and Git. Every check CI runs is available
+You need Go 1.26.6 or later and Git. Every check CI runs is available
 locally:
 
 ```sh
@@ -22,6 +22,7 @@ make test      # tests with the race detector
 make lint      # golangci-lint, pinned
 make fmt       # format code and imports
 make cover     # test coverage
+make fuzz      # every fuzz target, FUZZTIME each (default 30s)
 make breaking  # protocol changes that break compatibility with main
 make proto     # regenerate code after editing a .proto file
 ```
@@ -50,8 +51,9 @@ produced by this module contains it; render a generation with
 path, including errors.
 
 **Tests.** Test fixtures use reserved names only, such as domains under
-`example.com`. The conformance corpus is regenerated only by
-`wire/internal/admissioncorpusgen`, and a change to it is a protocol change.
+`example.com`. Every decoder of untrusted input has a fuzz target. The
+conformance corpus is regenerated only by `wire/internal/admissioncorpusgen`,
+and a change to it is a protocol change.
 
 **Comments.** Document what an exported identifier guarantees, not how it
 came to be.

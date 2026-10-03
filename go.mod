@@ -1,6 +1,6 @@
 module github.com/idyl-labs/hyperplane-go
 
-go 1.26.4
+go 1.26.6
 
 require (
 	github.com/quic-go/quic-go v0.62.0
