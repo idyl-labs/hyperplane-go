@@ -276,7 +276,7 @@ func datagramUvarint(b []byte) (uint64, int, error) {
 	if n < 0 {
 		return 0, 0, fmt.Errorf("%w: varint overflows u64", ErrLaneAttribution)
 	}
-	if n > 1 && b[n-1] == 0 {
+	if n > 1 && b[n-1] == 0 { //nolint:gosec // binary.Uvarint returns n <= len(b) when n > 0
 		return 0, 0, fmt.Errorf("%w: non-minimal varint", ErrLaneAttribution)
 	}
 	return v, n, nil

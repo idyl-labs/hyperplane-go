@@ -36,9 +36,10 @@ Wire-visible strings, field numbers, enum values and canonical encodings are
 part of the protocol and change only through a new protocol version.
 
 **Errors.** New error strings are lowercase and start with the package name.
-Wrap causes with `%w`. Callers classify errors with `errors.Is` and
-`errors.As` against the sentinels and types each package exports, never by
-matching text.
+An error wraps exactly one exported sentinel with `%w`, so every refusal has
+one class; render any further cause as text with `%v`. Callers classify
+errors with `errors.Is` and `errors.As` against the sentinels and types each
+package exports, never by matching text.
 
 **Secrets.** A dock generation's nonce is a secret. No error or log line
 produced by this module contains it; render a generation with

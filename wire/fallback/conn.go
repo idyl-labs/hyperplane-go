@@ -17,6 +17,7 @@ package fallback
 import (
 	"context"
 	"encoding/binary"
+	"errors"
 	"fmt"
 	"io"
 	"net"
@@ -223,7 +224,8 @@ func (c *Conn) readLoop() {
 			_ = c.tc.SetReadDeadline(time.Now().Add(c.idle))
 		}
 		if _, err := io.ReadFull(c.tc, hdr); err != nil {
-			if ne, ok := err.(net.Error); ok && ne.Timeout() {
+			var ne net.Error
+			if errors.As(err, &ne) && ne.Timeout() {
 				err = IdleTimeoutError{}
 			}
 			c.fail(err)

@@ -31,10 +31,10 @@ func (f *fakeRPCStream) Write(p []byte) (int, error) { return len(p), nil }
 func (f *fakeRPCStream) Close() error                { f.closed = true; return nil }
 func (f *fakeRPCStream) Abort()                      { f.aborted = true }
 
-// TestRpcSatisfiesRPCStream is a compile-time assertion that *Rpc is a valid
-// RPCStream, so consumers can pass a real Rpc to NewRPCConn.
-func TestRpcSatisfiesRPCStream(t *testing.T) {
-	var _ RPCStream = (*Rpc)(nil)
+// TestRPCSatisfiesRPCStream is a compile-time assertion that *RPC is a valid
+// RPCStream, so consumers can pass a real RPC to NewRPCConn.
+func TestRPCSatisfiesRPCStream(t *testing.T) {
+	var _ RPCStream = (*RPC)(nil)
 }
 
 // TestNewRPCConnCloseAbortsAndRunsOnClose: Close aborts the RPC, runs onClose

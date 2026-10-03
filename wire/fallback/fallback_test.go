@@ -30,9 +30,10 @@ import (
 // TCP pair. TLS is omitted because it does not change the multiplexing
 // logic under test.
 
-// pair returns a connected client and server Conn over loopback TCP with
-// the given idle timeouts (zero disables idle detection on that side).
-func pair(t *testing.T, idleClient, idleServer time.Duration) (*Conn, *Conn) {
+// pair returns a connected client and server Conn over loopback TCP. The
+// client has no idle timeout; idleServer sets the server's (zero disables
+// idle detection).
+func pair(t *testing.T, idleServer time.Duration) (*Conn, *Conn) {
 	t.Helper()
 	ln, err := net.Listen("tcp", "127.0.0.1:0")
 	if err != nil {
@@ -57,7 +58,7 @@ func pair(t *testing.T, idleClient, idleServer time.Duration) (*Conn, *Conn) {
 	if r.err != nil {
 		t.Fatal(r.err)
 	}
-	client := Client(cc, idleClient)
+	client := Client(cc, 0)
 	server := Server(r.c, idleServer)
 	t.Cleanup(func() {
 		_ = client.CloseWithError(0, "test done")
@@ -67,7 +68,7 @@ func pair(t *testing.T, idleClient, idleServer time.Duration) (*Conn, *Conn) {
 }
 
 func TestBidiRoundTrip(t *testing.T) {
-	client, server := pair(t, 0, 0)
+	client, server := pair(t, 0)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -105,7 +106,7 @@ func TestBidiRoundTrip(t *testing.T) {
 }
 
 func TestUniStream(t *testing.T) {
-	client, server := pair(t, 0, 0)
+	client, server := pair(t, 0)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -135,7 +136,7 @@ func TestUniStream(t *testing.T) {
 // stays bounded: a slow reader applies backpressure instead of growing an
 // unbounded queue.
 func TestWindowBackpressure(t *testing.T) {
-	client, server := pair(t, 0, 0)
+	client, server := pair(t, 0)
 	ctx, cancel := context.WithTimeout(context.Background(), 20*time.Second)
 	defer cancel()
 
@@ -185,7 +186,7 @@ func TestWindowBackpressure(t *testing.T) {
 // TestResetTearsBothDirections checks that CancelWrite reaches the peer as
 // ErrStreamReset on read and also cancels the local stream context.
 func TestResetTearsBothDirections(t *testing.T) {
-	client, server := pair(t, 0, 0)
+	client, server := pair(t, 0)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -231,7 +232,7 @@ func TestResetTearsBothDirections(t *testing.T) {
 // keeps a stable message, so callers read the code from the typed error
 // rather than parsing text.
 func TestResetCarriesTypedCode(t *testing.T) {
-	client, server := pair(t, 0, 0)
+	client, server := pair(t, 0)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
@@ -305,7 +306,7 @@ func TestStreamFramesRejectConnectionStreamID(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			client, server := pair(t, 0, 0)
+			client, server := pair(t, 0)
 			if err := client.writeFrame(tc.typ, 0, tc.payload); err != nil {
 				t.Fatalf("write malformed frame: %v", err)
 			}
@@ -322,7 +323,7 @@ func TestStreamFramesRejectConnectionStreamID(t *testing.T) {
 }
 
 func TestCloseCarriesCode(t *testing.T) {
-	client, server := pair(t, 0, 0)
+	client, server := pair(t, 0)
 	_ = client.CloseWithError(0x10, "drain")
 
 	<-server.Context().Done()
@@ -346,7 +347,7 @@ func TestCloseCarriesCode(t *testing.T) {
 // keep an otherwise idle connection open. Idle detection is the backstop
 // that ends a connection whose peer vanished without closing it.
 func TestIdleTimeoutAndPing(t *testing.T) {
-	client, server := pair(t, 0, 400*time.Millisecond)
+	client, server := pair(t, 400*time.Millisecond)
 
 	// PINGs at about half the idle window hold the connection open.
 	stop := make(chan struct{})
@@ -386,7 +387,7 @@ func TestIdleTimeoutAndPing(t *testing.T) {
 }
 
 func TestReadDeadline(t *testing.T) {
-	client, server := pair(t, 0, 0)
+	client, server := pair(t, 0)
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 

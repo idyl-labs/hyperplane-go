@@ -272,7 +272,7 @@ type laneSet struct {
 
 	// sem is the accept backlog: one slot per stream accepted ahead of its
 	// consumer. An RPC stream holds its slot until it is queued for
-	// AcceptRpc; a lane stream holds it until Lane.AcceptStream claims it
+	// AcceptRPC; a lane stream holds it until Lane.AcceptStream claims it
 	// or the lane's end resets it.
 	sem chan struct{}
 }
@@ -387,7 +387,7 @@ func (d *Dock) laneClosed(lc *dockpb.LaneClosed) {
 }
 
 // ensurePump starts the inbound bidirectional stream dispatch exactly
-// once. Every consumer of inbound streams (AcceptRpc, AcceptLane and
+// once. Every consumer of inbound streams (AcceptRPC, AcceptLane and
 // Lane.AcceptStream) goes through it; two callers accepting streams
 // directly would each take streams meant for the other.
 func (d *Dock) ensurePump() {
@@ -419,7 +419,7 @@ func (d *Dock) acceptPump(set *laneSet) {
 
 // routeStream reads one stream's first byte and dispatches it:
 // StreamKindLane goes to the named lane; 0x00, the first byte of every
-// RPC frame, goes to AcceptRpc with the byte replayed; any other value
+// RPC frame, goes to AcceptRPC with the byte replayed; any other value
 // has no assigned protocol and the stream is reset in both directions
 // with DockCodeProtocol. Reading the first byte and the lane header is
 // bounded by laneAttachWait.
@@ -449,7 +449,7 @@ func (d *Dock) routeStream(set *laneSet, s transportStream) {
 		first := byte(0x00)
 		select {
 		case set.rpc <- &prefacedStream{first: &first, transportStream: s}:
-			// Queued for AcceptRpc: from here the RPC channel's own
+			// Queued for AcceptRPC: from here the RPC channel's own
 			// capacity is the bound.
 			<-set.sem
 		case <-d.conn.Context().Done():

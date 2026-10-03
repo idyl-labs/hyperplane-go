@@ -74,7 +74,7 @@ func main() {
 		log.Fatal(err)
 	}
 	encoded = append(encoded, '\n')
-	if err := os.WriteFile(*out, encoded, 0o644); err != nil {
+	if err := os.WriteFile(*out, encoded, 0o644); err != nil { //nolint:gosec // the corpus is a committed, public fixture
 		log.Fatal(err)
 	}
 	fmt.Printf("wrote %d vectors to %s\n", len(corpus.Vectors), *out)

@@ -70,8 +70,8 @@
 // The edge opens streams toward the dock; the dock accepts them:
 //
 //	AcceptLane    the next lane the edge attached to this dock
-//	AcceptRpc     the next inbound RPC: the opener's metadata and a
-//	              bidirectional byte pipe (*Rpc)
+//	AcceptRPC     the next inbound RPC: the opener's metadata and a
+//	              bidirectional byte pipe (*RPC)
 //	AcceptEvent   the next pushed event payload
 //
 // A lane is an association between two docks, established by the fabric
@@ -87,7 +87,7 @@
 // Inbound RPC streams and lane streams share the dock's connection. The
 // client reads the first byte of each inbound stream to tell them apart,
 // so all three Accept methods can be used on one dock at the same time.
-// NewRPCConn adapts an *Rpc to net.Conn for protocols that need one, and
+// NewRPCConn adapts an *RPC to net.Conn for protocols that need one, and
 // ReportRPCMetadata is the well-known metadata of a report RPC.
 //
 // A minimal lane server:

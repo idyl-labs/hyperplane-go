@@ -388,7 +388,7 @@ const (
 func keepaliveDelay(granted time.Duration) time.Duration {
 	floor := granted * keepaliveJitterFloorPct / 100
 	width := granted*keepaliveJitterCeilPct/100 - floor
-	return floor + mrand.N(width+1)
+	return floor + mrand.N(width+1) //nolint:gosec // jitter needs spread, not secrecy; math/rand keeps the keepalive path free of crypto/rand
 }
 
 // keepaliveLoop honors the granted cadence: one small unit of transport

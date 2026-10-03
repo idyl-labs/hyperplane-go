@@ -52,8 +52,8 @@ func TestOpenCancellationInterruptsBlockedFallbackOpening(t *testing.T) {
 	for _, phase := range []string{"stream open", "hello write", "welcome read"} {
 		t.Run(phase, func(t *testing.T) {
 			local, peer := net.Pipe()
-			defer local.Close()
-			defer peer.Close()
+			defer func() { _ = local.Close() }()
+			defer func() { _ = peer.Close() }()
 			observed := &observedOpeningConn{Conn: local, writes: make(chan int32, 8)}
 			conn := &fallbackTransportConn{conn: fallback.Client(observed, 0), raw: local}
 			ctx, cancel := context.WithCancel(context.Background())
@@ -126,8 +126,8 @@ func TestOpenCancellationInterruptsBlockedFallbackOpening(t *testing.T) {
 
 func TestOpenDeadlinePreservesContextCause(t *testing.T) {
 	local, peer := net.Pipe()
-	defer local.Close()
-	defer peer.Close()
+	defer func() { _ = local.Close() }()
+	defer func() { _ = peer.Close() }()
 	conn := &fallbackTransportConn{conn: fallback.Client(local, 0), raw: local}
 	ctx, cancel := context.WithTimeout(context.Background(), 100*time.Millisecond)
 	defer cancel()
@@ -163,7 +163,7 @@ func TestReturnedDockSurvivesOpeningContextCancellation(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer ln.Close()
+				defer func() { _ = ln.Close() }()
 				cfg.Endpoint = ln.Addr().String()
 				go func() {
 					conn, err := ln.Accept(serverCtx)
@@ -180,7 +180,7 @@ func TestReturnedDockSurvivesOpeningContextCancellation(t *testing.T) {
 				if err != nil {
 					t.Fatal(err)
 				}
-				defer ln.Close()
+				defer func() { _ = ln.Close() }()
 				cfg.Endpoint, cfg.ForceFallback = ln.Addr().String(), true
 				go func() {
 					raw, err := ln.Accept()
@@ -206,7 +206,7 @@ func TestReturnedDockSurvivesOpeningContextCancellation(t *testing.T) {
 					serverError <- serverCtx.Err()
 					return
 				}
-				defer conn.CloseWithError(wire.DockCodeDrain, "test complete")
+				defer func() { _ = conn.CloseWithError(wire.DockCodeDrain, "test complete") }()
 				stream, err := conn.AcceptStream(serverCtx)
 				if err != nil {
 					serverError <- err
@@ -239,7 +239,7 @@ func TestReturnedDockSurvivesOpeningContextCancellation(t *testing.T) {
 			if err != nil {
 				t.Fatal(err)
 			}
-			defer dock.Close()
+			defer func() { _ = dock.Close() }()
 			cancelOpening()
 			close(proceed)
 			select {
@@ -257,8 +257,8 @@ func TestReturnedDockSurvivesOpeningContextCancellation(t *testing.T) {
 
 func TestAbandonUnblocksFallbackWriteAndStreamAbort(t *testing.T) {
 	local, peer := net.Pipe()
-	defer local.Close()
-	defer peer.Close()
+	defer func() { _ = local.Close() }()
+	defer func() { _ = peer.Close() }()
 	observed := &observedOpeningConn{Conn: local, writes: make(chan int32, 8)}
 	conn := &fallbackTransportConn{conn: fallback.Client(observed, 0), raw: local}
 	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Second)
@@ -332,8 +332,8 @@ func TestFailedOpeningDoesNotWaitForPeerToReadGracefulClose(t *testing.T) {
 	for _, response := range []string{"missing welcome", "stream ended", "overloaded"} {
 		t.Run(response, func(t *testing.T) {
 			local, peer := net.Pipe()
-			defer local.Close()
-			defer peer.Close()
+			defer func() { _ = local.Close() }()
+			defer func() { _ = peer.Close() }()
 			conn := &fallbackTransportConn{conn: fallback.Client(local, 0), raw: local}
 			peerDone := make(chan error, 1)
 			go func() {

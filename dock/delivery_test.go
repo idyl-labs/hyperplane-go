@@ -14,10 +14,10 @@
 
 package dock
 
-// delivery_test.go: the inbound RPC path (AcceptRpc) against scripted
+// delivery_test.go: the inbound RPC path (AcceptRPC) against scripted
 // edge-opened streams. The transportConn/transportStream seam lets stream
 // ownership be checked without a live connection: a well-formed RpcOpen
-// preface hands the stream to the returned Rpc, and a broken one releases
+// preface hands the stream to the returned RPC, and a broken one releases
 // it in both directions.
 
 import (
@@ -81,10 +81,10 @@ func (s *recordingStream) SetReadDeadline(time.Time) error { return nil }
 // released reports whether the stream was torn down by either teardown verb.
 func (s *recordingStream) released() bool { return s.closed || s.cancelRead || s.cancelWrite }
 
-// TestAcceptRpcReturnsPipe: on an edge-opened stream, the RpcOpen preface
+// TestAcceptRPCReturnsPipe: on an edge-opened stream, the RpcOpen preface
 // surfaces the opener's metadata and ownership of the stream transfers to
-// the returned Rpc, so a successful accept must not release it.
-func TestAcceptRpcReturnsPipe(t *testing.T) {
+// the returned RPC, so a successful accept must not release it.
+func TestAcceptRPCReturnsPipe(t *testing.T) {
 	var frame bytes.Buffer
 	if err := wire.WriteFrame(&frame, &dpb.RpcOpen{Metadata: []byte("meta")}); err != nil {
 		t.Fatal(err)
@@ -92,35 +92,35 @@ func TestAcceptRpcReturnsPipe(t *testing.T) {
 	s := &recordingStream{serve: bytes.NewReader(frame.Bytes()), err: io.EOF}
 	d := &Dock{conn: &acceptConn{s: s}}
 
-	metadata, rpc, err := d.AcceptRpc(context.Background())
+	metadata, rpc, err := d.AcceptRPC(context.Background())
 	if err != nil {
-		t.Fatalf("AcceptRpc error = %v", err)
+		t.Fatalf("AcceptRPC error = %v", err)
 	}
 	if string(metadata) != "meta" {
 		t.Fatalf("metadata = %q, want meta", metadata)
 	}
 	if rpc == nil {
-		t.Fatal("AcceptRpc returned nil pipe")
+		t.Fatal("AcceptRPC returned nil pipe")
 	}
 	if s.released() {
-		t.Fatal("AcceptRpc released the stream on success; ownership must transfer to the Rpc")
+		t.Fatal("AcceptRPC released the stream on success; ownership must transfer to the RPC")
 	}
 }
 
-// TestAcceptRpcReleasesStreamOnBadPreface: a broken RpcOpen preface must
+// TestAcceptRPCReleasesStreamOnBadPreface: a broken RpcOpen preface must
 // cancel the edge-opened stream in both directions. Otherwise every
 // malformed open strands one stream, and with it the stream credit the
 // edge needs to keep opening new ones.
-func TestAcceptRpcReleasesStreamOnBadPreface(t *testing.T) {
+func TestAcceptRPCReleasesStreamOnBadPreface(t *testing.T) {
 	// A frame header declaring 10 bytes, then EOF: ReadFrame must fail.
 	truncated := []byte{0x00, 0x00, 0x00, 0x0A}
 	s := &recordingStream{serve: bytes.NewReader(truncated), err: io.EOF}
 	d := &Dock{conn: &acceptConn{s: s}}
 
-	if _, _, err := d.AcceptRpc(context.Background()); err == nil {
-		t.Fatal("AcceptRpc with a truncated preface must return an error")
+	if _, _, err := d.AcceptRPC(context.Background()); err == nil {
+		t.Fatal("AcceptRPC with a truncated preface must return an error")
 	}
 	if !s.cancelRead || !s.cancelWrite {
-		t.Fatal("AcceptRpc leaked the stream on a bad preface: both directions must be canceled")
+		t.Fatal("AcceptRPC leaked the stream on a bad preface: both directions must be canceled")
 	}
 }

@@ -31,6 +31,11 @@ linters:
     - unparam
     - unused
   settings:
+    errorlint:
+      # An error wraps exactly one sentinel with %w, so every refusal has one
+      # class for errors.Is; a further cause is rendered as text with %v.
+      # Wrapping both would let one refusal match two classes.
+      errorf: false
     gosec:
       excludes:
         # Integer conversions here are between protocol fields and their Go

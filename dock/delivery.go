@@ -45,23 +45,23 @@ func drainReceive(s transportReceiveStream) {
 	}
 }
 
-// Rpc is one inbound RPC: an open bidirectional byte pipe between the
+// RPC is one inbound RPC: an open bidirectional byte pipe between the
 // RPC's opener and this dock.
-type Rpc struct {
+type RPC struct {
 	stream transportStream
 }
 
-func (r *Rpc) Read(p []byte) (int, error)  { return r.stream.Read(p) }
-func (r *Rpc) Write(p []byte) (int, error) { return r.stream.Write(p) }
+func (r *RPC) Read(p []byte) (int, error)  { return r.stream.Read(p) }
+func (r *RPC) Write(p []byte) (int, error) { return r.stream.Write(p) }
 
 // Close half-closes the write side (FIN); reads continue until the peer's
 // FIN. To finish an RPC cleanly, close the write side and read the peer's
 // data to EOF: once both directions have ended, the stream retires and its
 // credit returns without a reset. Use Abort only to give up.
-func (r *Rpc) Close() error { return r.stream.Close() }
+func (r *RPC) Close() error { return r.stream.Close() }
 
 // Abort resets both directions of the RPC at once.
-func (r *Rpc) Abort() {
+func (r *RPC) Abort() {
 	r.stream.CancelRead(wire.DockCodeProtocol)
 	r.stream.CancelWrite(wire.DockCodeProtocol)
 }
@@ -87,7 +87,7 @@ func (d *Dock) AcceptEvent(ctx context.Context) ([]byte, error) {
 	return push.GetPayload(), nil
 }
 
-// AcceptRpc blocks for the next inbound RPC and returns the metadata the
+// AcceptRPC blocks for the next inbound RPC and returns the metadata the
 // opener supplied together with the byte pipe. Inbound bidirectional
 // streams are told apart by their first byte: every RPC begins with a
 // length-prefixed frame whose first byte is 0x00 (the 4-byte big-endian
@@ -95,7 +95,7 @@ func (d *Dock) AcceptEvent(ctx context.Context) ([]byte, error) {
 // wire.StreamKindLane. RPCs and lane streams therefore share one dock.
 // RPC streams that arrived before the dock ended can still be accepted
 // after it ends.
-func (d *Dock) AcceptRpc(ctx context.Context) ([]byte, *Rpc, error) {
+func (d *Dock) AcceptRPC(ctx context.Context) ([]byte, *RPC, error) {
 	d.ensurePump()
 	set := d.laneset()
 	var s transportStream
@@ -127,5 +127,5 @@ func (d *Dock) AcceptRpc(ctx context.Context) ([]byte, *Rpc, error) {
 		s.CancelWrite(wire.DockCodeProtocol)
 		return nil, nil, err
 	}
-	return open.GetMetadata(), &Rpc{stream: s}, nil
+	return open.GetMetadata(), &RPC{stream: s}, nil
 }

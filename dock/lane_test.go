@@ -208,15 +208,14 @@ type laneEdge struct {
 }
 
 // newLaneDock builds a dock over the fakes with its control watcher
-// running, on the transport named (wire.TransportQUIC unless the test is
-// about the fallback).
-func newLaneDock(t *testing.T, transport string) (*Dock, *laneEdge) {
+// running, on the QUIC transport.
+func newLaneDock(t *testing.T) (*Dock, *laneEdge) {
 	t.Helper()
 	ctrlEdge, ctrlClient := newLanePipe()
 	conn := newLaneConn()
 	d := &Dock{
 		conn:      conn,
-		transport: transport,
+		transport: wire.TransportQUIC,
 		control:   ctrlClient,
 		drained:   make(chan struct{}),
 	}
@@ -269,17 +268,16 @@ func (e *laneEdge) openRaw(b []byte) openedStream {
 	return openedStream{edge: edge, s: s}
 }
 
-// openRpc opens an edge-initiated bidi stream carrying one RpcOpen frame:
+// openRPC opens an edge-initiated bidi stream carrying one RpcOpen frame:
 // a length-prefixed protobuf with no kind byte. The frame size cap keeps
 // the high byte of the four-byte length zero, so the stream leads 0x00.
-func (e *laneEdge) openRpc(metadata []byte) openedStream {
+func (e *laneEdge) openRPC(metadata []byte) {
 	e.t.Helper()
 	edge, s := newLanePipe()
 	e.conn.accepts <- s
 	go func() {
 		_ = wire.WriteFrame(edge, &dpb.RpcOpen{Metadata: metadata})
 	}()
-	return openedStream{edge: edge, s: s}
 }
 
 func laneCtx(t *testing.T) context.Context {
@@ -293,7 +291,7 @@ func laneCtx(t *testing.T) context.Context {
 // the lane with its granted classes, advisory peer principal, and opaque
 // metadata; the lane is live, not closed.
 func TestLaneAttachedSurfacesLane(t *testing.T) {
-	d, e := newLaneDock(t, wire.TransportQUIC)
+	d, e := newLaneDock(t)
 	e.attach(7, wire.LaneClassStream|wire.LaneClassFlow, "spiffe://td/workload", []byte("meta"))
 
 	lane, err := d.AcceptLane(laneCtx(t))
@@ -324,7 +322,7 @@ func TestLaneAttachedSurfacesLane(t *testing.T) {
 // LaneClosed is an idempotent notification; and the control watcher keeps
 // serving drain afterwards (positive control in the same setup).
 func TestLaneClosedSignalsOnce(t *testing.T) {
-	d, e := newLaneDock(t, wire.TransportQUIC)
+	d, e := newLaneDock(t)
 	e.attach(7, wire.LaneClassStream, "", nil)
 	lane, err := d.AcceptLane(laneCtx(t))
 	if err != nil {
@@ -360,23 +358,23 @@ func TestLaneClosedSignalsOnce(t *testing.T) {
 	}
 }
 
-// TestAcceptDispatchRoutesRpcAndLane: inbound bidi streams route by
-// first byte (0x00-led delivery frames to AcceptRpc, kind byte 0x03 to
+// TestAcceptDispatchRoutesRPCAndLane: inbound bidi streams route by
+// first byte (0x00-led delivery frames to AcceptRPC, kind byte 0x03 to
 // the named lane), each keeping its byte pipe.
-func TestAcceptDispatchRoutesRpcAndLane(t *testing.T) {
-	d, e := newLaneDock(t, wire.TransportQUIC)
+func TestAcceptDispatchRoutesRPCAndLane(t *testing.T) {
+	d, e := newLaneDock(t)
 	e.attach(5, wire.LaneClassStream, "", nil)
 	lane, err := d.AcceptLane(laneCtx(t))
 	if err != nil {
 		t.Fatalf("AcceptLane: %v", err)
 	}
 
-	e.openRpc([]byte("rpc-meta"))
+	e.openRPC([]byte("rpc-meta"))
 	raw := e.openRaw(append(laneAttr(5, wire.LaneStreamClassPassthrough, "hdr"), "ping"...))
 
-	md, rpc, err := d.AcceptRpc(laneCtx(t))
+	md, rpc, err := d.AcceptRPC(laneCtx(t))
 	if err != nil {
-		t.Fatalf("AcceptRpc: %v", err)
+		t.Fatalf("AcceptRPC: %v", err)
 	}
 	if !bytes.Equal(md, []byte("rpc-meta")) {
 		t.Errorf("rpc metadata = %q", md)
@@ -406,7 +404,7 @@ func TestAcceptDispatchRoutesRpcAndLane(t *testing.T) {
 // the stream is reset both ways with DockCodeProtocol, while a
 // well-formed lane stream in the same setup is delivered.
 func TestAcceptDispatchRefusesUnknownKind(t *testing.T) {
-	d, e := newLaneDock(t, wire.TransportQUIC)
+	d, e := newLaneDock(t)
 	e.attach(6, wire.LaneClassStream, "", nil)
 	lane, err := d.AcceptLane(laneCtx(t))
 	if err != nil {
@@ -430,7 +428,7 @@ func TestAcceptDispatchRefusesUnknownKind(t *testing.T) {
 // delivery order, so a stream naming a lane_id not yet seen is held while
 // control frames catch up, then delivered.
 func TestAcceptStreamHeldUntilAttachDelivered(t *testing.T) {
-	d, e := newLaneDock(t, wire.TransportQUIC)
+	d, e := newLaneDock(t)
 
 	// Stream first. AcceptLane is not yet listening for lane 9; prime
 	// dispatch via a goroutine accepting on the dock.
@@ -482,7 +480,7 @@ func TestAcceptStreamHeldUntilAttachDelivered(t *testing.T) {
 // same setup's attached lane keeps receiving streams.
 func TestAcceptStreamUnknownLaneBounded(t *testing.T) {
 	defer swapLaneAttachWait(50 * time.Millisecond)()
-	d, e := newLaneDock(t, wire.TransportQUIC)
+	d, e := newLaneDock(t)
 	e.attach(4, wire.LaneClassStream, "", nil)
 	lane, err := d.AcceptLane(laneCtx(t))
 	if err != nil {
@@ -506,7 +504,7 @@ func TestAcceptStreamUnknownLaneBounded(t *testing.T) {
 // that ends mid-grammar) is reset both ways with DockCodeProtocol; a
 // well-formed stream in the same setup is delivered.
 func TestAcceptStreamMalformedAttribution(t *testing.T) {
-	d, e := newLaneDock(t, wire.TransportQUIC)
+	d, e := newLaneDock(t)
 	e.attach(5, wire.LaneClassStream, "", nil)
 	lane, err := d.AcceptLane(laneCtx(t))
 	if err != nil {
@@ -547,7 +545,7 @@ func TestAcceptStreamMalformedAttribution(t *testing.T) {
 // never reuses one), so a stream naming a closed lane is refused like a
 // foreign one, while a live lane in the same setup still receives.
 func TestAcceptStreamDeadLaneRefused(t *testing.T) {
-	d, e := newLaneDock(t, wire.TransportQUIC)
+	d, e := newLaneDock(t)
 	e.attach(4, wire.LaneClassStream, "", nil)
 	dead, err := d.AcceptLane(laneCtx(t))
 	if err != nil {
@@ -582,7 +580,7 @@ func TestAcceptStreamDeadLaneRefused(t *testing.T) {
 // sends FIN, which the peer reads as EOF, and the clean path never
 // resets the stream.
 func TestLaneOpenStreamWritesAttributionThenPipes(t *testing.T) {
-	d, e := newLaneDock(t, wire.TransportQUIC)
+	d, e := newLaneDock(t)
 	e.attach(8, wire.LaneClassStream, "", nil)
 	lane, err := d.AcceptLane(laneCtx(t))
 	if err != nil {
@@ -638,7 +636,7 @@ func TestLaneOpenStreamWritesAttributionThenPipes(t *testing.T) {
 // nothing. The same lane opened streams before it ended (positive
 // control), and Abort resets both directions of one.
 func TestLaneOpenStreamAfterCloseRefusedLocally(t *testing.T) {
-	d, e := newLaneDock(t, wire.TransportQUIC)
+	d, e := newLaneDock(t)
 	e.attach(8, wire.LaneClassStream, "", nil)
 	lane, err := d.AcceptLane(laneCtx(t))
 	if err != nil {
@@ -691,7 +689,7 @@ func queuedUnclaimed(d *Dock, l *Lane) int {
 // consumer claims, and each claim admits exactly the next stream (the
 // positive control for the same mechanism).
 func TestAcceptBacklogBoundsUnclaimedLaneStreams(t *testing.T) {
-	d, e := newLaneDock(t, wire.TransportQUIC)
+	d, e := newLaneDock(t)
 	e.attach(5, wire.LaneClassStream, "", nil)
 	lane, err := d.AcceptLane(laneCtx(t))
 	if err != nil {
@@ -740,7 +738,7 @@ func TestAcceptBacklogBoundsUnclaimedLaneStreams(t *testing.T) {
 // the dock keeps accepting. AcceptStream after the end reports
 // ErrLaneClosed.
 func TestLaneCloseReleasesUnclaimedStreams(t *testing.T) {
-	d, e := newLaneDock(t, wire.TransportQUIC)
+	d, e := newLaneDock(t)
 	e.attach(5, wire.LaneClassStream, "", nil)
 	lane, err := d.AcceptLane(laneCtx(t))
 	if err != nil {
@@ -773,11 +771,11 @@ func TestLaneCloseReleasesUnclaimedStreams(t *testing.T) {
 	opened[0].s.waitCanceled(t, 0)
 
 	// Positive control: the slots returned, so a fresh delivery frame
-	// stream still routes to AcceptRpc.
-	e.openRpc([]byte("after-close"))
-	md, rpc, err := d.AcceptRpc(laneCtx(t))
+	// stream still routes to AcceptRPC.
+	e.openRPC([]byte("after-close"))
+	md, rpc, err := d.AcceptRPC(laneCtx(t))
 	if err != nil || string(md) != "after-close" {
-		t.Fatalf("AcceptRpc after slot release: %q, %v", md, err)
+		t.Fatalf("AcceptRPC after slot release: %q, %v", md, err)
 	}
 	rpc.Abort()
 }

@@ -29,7 +29,7 @@ import (
 // endpoints only.
 const ReportRPCMetadata = "reports/v1"
 
-// RPCStream is the byte-stream surface of an RPC. *Rpc satisfies it.
+// RPCStream is the byte-stream surface of an RPC. *RPC satisfies it.
 // NewRPCConn adapts it to net.Conn; as an interface it also lets callers
 // substitute a fake in tests.
 type RPCStream interface {
