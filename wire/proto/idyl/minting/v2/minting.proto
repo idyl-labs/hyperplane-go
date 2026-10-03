@@ -22,7 +22,7 @@ syntax = "proto3";
 // the issuer selected.
 package idyl.minting.v2;
 
-import "idyl/common/v2/common.proto";
+import "idyl/membership/v2/common.proto";
 import "idyl/trust/v1/trust.proto";
 
 option go_package = "github.com/idyl-labs/hyperplane-go/wire/mintingv2";
@@ -45,8 +45,8 @@ message MintSessionSvidRequest {
   // requester.
   bytes csr_der = 1;
   string session_id = 2;
-  idyl.common.v2.SessionKind session_kind = 3;
-  idyl.common.v2.SessionLeg session_leg = 4;
+  idyl.membership.v2.SessionKind session_kind = 3;
+  idyl.membership.v2.SessionLeg session_leg = 4;
   string pod_id = 5;
   int64 assignment_generation = 6;
   string grant_id = 7; // required only for proxy leg

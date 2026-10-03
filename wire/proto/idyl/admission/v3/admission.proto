@@ -35,8 +35,8 @@ syntax = "proto3";
 // "idyl-dock-proof-signature/v1\x00".
 package idyl.admission.v3;
 
-import "idyl/common/v2/common.proto";
-import "idyl/common/v2/plane.proto";
+import "idyl/membership/v2/common.proto";
+import "idyl/membership/v2/plane.proto";
 
 option go_package = "github.com/idyl-labs/hyperplane-go/wire/admissionv3";
 
@@ -67,12 +67,12 @@ message ZoneAdmissionLeasePayload {
   uint32 version = 1; // exactly 3; any other version is refused
   bytes lease_id = 2; // 16 opaque issuer bytes; audit only
   string zone = 3;
-  idyl.common.v2.Plane fabric_plane = 4;
+  idyl.membership.v2.Plane fabric_plane = 4;
   // Exact authenticated connection SVID URI. Node, pod, session and share
   // principals all use the zone SPIFFE trust domain.
   string principal = 5;
   bytes subject_spki_sha256 = 6;
-  idyl.common.v2.EndpointKind endpoint_kind = 7;
+  idyl.membership.v2.EndpointKind endpoint_kind = 7;
 
   string subnet_id = 8;
   string owner_scope = 9;
@@ -94,8 +94,8 @@ message ZoneAdmissionLeasePayload {
   uint64 assignment_generation = 16;
 
   string session_id = 17;
-  idyl.common.v2.SessionKind session_kind = 18;
-  idyl.common.v2.SessionLeg session_leg = 19;
+  idyl.membership.v2.SessionKind session_kind = 18;
+  idyl.membership.v2.SessionLeg session_leg = 19;
   string grant_id = 20; // proxy leg only; client leg has no proxy grant
 
   // Adapter classes the endpoint may serve, as a bitset: 0 control dock,
@@ -132,5 +132,5 @@ message DockProofInput {
   bytes exporter_value = 4; // 32 bytes from this TLS connection
   bytes lease_envelope_sha256 = 5; // digest of exact envelope bytes
   uint32 keepalive_ms = 6;
-  idyl.common.v2.DockGen predecessor_gen = 7;
+  idyl.membership.v2.DockGen predecessor_gen = 7;
 }

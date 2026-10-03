@@ -52,7 +52,7 @@ type LaneCloseCause int32
 const (
 	LaneCloseCause_LANE_CLOSE_CAUSE_UNSPECIFIED    LaneCloseCause = 0
 	LaneCloseCause_LANE_CLOSE_CAUSE_LEG_UNDOCK     LaneCloseCause = 1
-	LaneCloseCause_LANE_CLOSE_CAUSE_EDGE_FAILURE   LaneCloseCause = 2
+	LaneCloseCause_LANE_CLOSE_CAUSE_SUBTREE_DEATH  LaneCloseCause = 2
 	LaneCloseCause_LANE_CLOSE_CAUSE_EPOCH_RETIRED  LaneCloseCause = 3
 	LaneCloseCause_LANE_CLOSE_CAUSE_GEN_MISMATCH   LaneCloseCause = 4
 	LaneCloseCause_LANE_CLOSE_CAUSE_POLICY_REVOKED LaneCloseCause = 5
@@ -65,7 +65,7 @@ var (
 	LaneCloseCause_name = map[int32]string{
 		0: "LANE_CLOSE_CAUSE_UNSPECIFIED",
 		1: "LANE_CLOSE_CAUSE_LEG_UNDOCK",
-		2: "LANE_CLOSE_CAUSE_EDGE_FAILURE",
+		2: "LANE_CLOSE_CAUSE_SUBTREE_DEATH",
 		3: "LANE_CLOSE_CAUSE_EPOCH_RETIRED",
 		4: "LANE_CLOSE_CAUSE_GEN_MISMATCH",
 		5: "LANE_CLOSE_CAUSE_POLICY_REVOKED",
@@ -75,7 +75,7 @@ var (
 	LaneCloseCause_value = map[string]int32{
 		"LANE_CLOSE_CAUSE_UNSPECIFIED":    0,
 		"LANE_CLOSE_CAUSE_LEG_UNDOCK":     1,
-		"LANE_CLOSE_CAUSE_EDGE_FAILURE":   2,
+		"LANE_CLOSE_CAUSE_SUBTREE_DEATH":  2,
 		"LANE_CLOSE_CAUSE_EPOCH_RETIRED":  3,
 		"LANE_CLOSE_CAUSE_GEN_MISMATCH":   4,
 		"LANE_CLOSE_CAUSE_POLICY_REVOKED": 5,
@@ -676,16 +676,16 @@ var File_idyl_dock_v3_dock_proto protoreflect.FileDescriptor
 
 const file_idyl_dock_v3_dock_proto_rawDesc = "" +
 	"\n" +
-	"\x17idyl/dock/v3/dock.proto\x12\fidyl.dock.v3\x1a\x1bidyl/common/v2/common.proto\"\x8f\x02\n" +
+	"\x17idyl/dock/v3/dock.proto\x12\fidyl.dock.v3\x1a\x1fidyl/membership/v2/common.proto\"\x93\x02\n" +
 	"\tDockHello\x12\x1a\n" +
 	"\bcontract\x18\x01 \x01(\tR\bcontract\x12!\n" +
-	"\fkeepalive_ms\x18\x02 \x01(\rR\vkeepaliveMs\x12@\n" +
-	"\x0fpredecessor_gen\x18\x03 \x01(\v2\x17.idyl.common.v2.DockGenR\x0epredecessorGen\x12%\n" +
+	"\fkeepalive_ms\x18\x02 \x01(\rR\vkeepaliveMs\x12D\n" +
+	"\x0fpredecessor_gen\x18\x03 \x01(\v2\x1b.idyl.membership.v2.DockGenR\x0epredecessorGen\x12%\n" +
 	"\x0elease_envelope\x18\x04 \x01(\fR\rleaseEnvelope\x12(\n" +
 	"\x10dock_proof_input\x18\x05 \x01(\fR\x0edockProofInput\x120\n" +
-	"\x14dock_proof_signature\x18\x06 \x01(\fR\x12dockProofSignature\"[\n" +
-	"\vDockWelcome\x12)\n" +
-	"\x03gen\x18\x01 \x01(\v2\x17.idyl.common.v2.DockGenR\x03gen\x12!\n" +
+	"\x14dock_proof_signature\x18\x06 \x01(\fR\x12dockProofSignature\"_\n" +
+	"\vDockWelcome\x12-\n" +
+	"\x03gen\x18\x01 \x01(\v2\x1b.idyl.membership.v2.DockGenR\x03gen\x12!\n" +
 	"\fkeepalive_ms\x18\x02 \x01(\rR\vkeepaliveMs\"H\n" +
 	"\tDockDrain\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12#\n" +
@@ -714,11 +714,11 @@ const file_idyl_dock_v3_dock_proto_rawDesc = "" +
 	"\rlane_attached\x18\x04 \x01(\v2\x1a.idyl.dock.v3.LaneAttachedH\x00R\flaneAttached\x12;\n" +
 	"\vlane_closed\x18\x05 \x01(\v2\x18.idyl.dock.v3.LaneClosedH\x00R\n" +
 	"laneClosedB\x05\n" +
-	"\x03msg*\x9d\x02\n" +
+	"\x03msg*\x9e\x02\n" +
 	"\x0eLaneCloseCause\x12 \n" +
 	"\x1cLANE_CLOSE_CAUSE_UNSPECIFIED\x10\x00\x12\x1f\n" +
-	"\x1bLANE_CLOSE_CAUSE_LEG_UNDOCK\x10\x01\x12!\n" +
-	"\x1dLANE_CLOSE_CAUSE_EDGE_FAILURE\x10\x02\x12\"\n" +
+	"\x1bLANE_CLOSE_CAUSE_LEG_UNDOCK\x10\x01\x12\"\n" +
+	"\x1eLANE_CLOSE_CAUSE_SUBTREE_DEATH\x10\x02\x12\"\n" +
 	"\x1eLANE_CLOSE_CAUSE_EPOCH_RETIRED\x10\x03\x12!\n" +
 	"\x1dLANE_CLOSE_CAUSE_GEN_MISMATCH\x10\x04\x12#\n" +
 	"\x1fLANE_CLOSE_CAUSE_POLICY_REVOKED\x10\x05\x12\x1b\n" +
@@ -749,11 +749,11 @@ var file_idyl_dock_v3_dock_proto_goTypes = []any{
 	(*LaneClosed)(nil),       // 6: idyl.dock.v3.LaneClosed
 	(*ClientToEdge)(nil),     // 7: idyl.dock.v3.ClientToEdge
 	(*EdgeToClient)(nil),     // 8: idyl.dock.v3.EdgeToClient
-	(*commonv2.DockGen)(nil), // 9: idyl.common.v2.DockGen
+	(*commonv2.DockGen)(nil), // 9: idyl.membership.v2.DockGen
 }
 var file_idyl_dock_v3_dock_proto_depIdxs = []int32{
-	9, // 0: idyl.dock.v3.DockHello.predecessor_gen:type_name -> idyl.common.v2.DockGen
-	9, // 1: idyl.dock.v3.DockWelcome.gen:type_name -> idyl.common.v2.DockGen
+	9, // 0: idyl.dock.v3.DockHello.predecessor_gen:type_name -> idyl.membership.v2.DockGen
+	9, // 1: idyl.dock.v3.DockWelcome.gen:type_name -> idyl.membership.v2.DockGen
 	0, // 2: idyl.dock.v3.LaneClosed.cause:type_name -> idyl.dock.v3.LaneCloseCause
 	1, // 3: idyl.dock.v3.ClientToEdge.hello:type_name -> idyl.dock.v3.DockHello
 	2, // 4: idyl.dock.v3.EdgeToClient.welcome:type_name -> idyl.dock.v3.DockWelcome

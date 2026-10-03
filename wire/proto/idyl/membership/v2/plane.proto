@@ -15,7 +15,7 @@
 syntax = "proto3";
 
 // This file defines Plane, the fabric plane an endpoint is admitted to.
-package idyl.common.v2;
+package idyl.membership.v2;
 
 option go_package = "github.com/idyl-labs/hyperplane-go/wire/commonv2";
 

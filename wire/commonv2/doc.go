@@ -12,8 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package commonv2 holds the generated protobuf code for idyl.common.v2: the edge
-// tag and dock generation identifiers (EdgeTag, DockGen) and the endpoint,
-// session and plane enums that the other protocol packages share. The
-// protocol definitions are in wire/proto/idyl/common/v2.
+// Package commonv2 holds the generated protobuf code for the shared types of
+// protocol package idyl.membership.v2: the edge tag and dock generation
+// identifiers (EdgeTag, DockGen) and the endpoint, session and plane enums
+// that the other protocol packages share. The protocol definitions are in
+// wire/proto/idyl/membership/v2.
 package commonv2

@@ -30,7 +30,7 @@ syntax = "proto3";
 // previous dock's TLS connection.
 package idyl.dock.v2;
 
-import "idyl/common/v2/common.proto";
+import "idyl/membership/v2/common.proto";
 
 option go_package = "github.com/idyl-labs/hyperplane-go/wire/dockv2";
 
@@ -44,7 +44,7 @@ message DockHello {
   // The client's previous generation, as disclosed by its previous edge.
   // Naming it makes this dock a succession of that generation. Absent for a
   // first dock and for a client that kept no record of its previous dock.
-  idyl.common.v2.DockGen predecessor_gen = 3;
+  idyl.membership.v2.DockGen predecessor_gen = 3;
 }
 
 // DockWelcome is the edge's reply: the dock is admitted and its generation
@@ -53,7 +53,7 @@ message DockWelcome {
   // The full dock generation, nonce included. The nonce is the succession
   // credential: it travels only here, inside this dock's TLS connection,
   // and must be redacted from every rendering of the generation.
-  idyl.common.v2.DockGen gen = 1;
+  idyl.membership.v2.DockGen gen = 1;
   // Granted cadence in milliseconds. The client must produce transport
   // activity at least this often, or the edge's idle timeout treats the
   // connection as dead.
@@ -85,7 +85,7 @@ enum LaneCloseCause {
   // One of the lane's docks undocked.
   LANE_CLOSE_CAUSE_LEG_UNDOCK = 1;
   // The part of the fabric serving one of the lane's docks failed.
-  LANE_CLOSE_CAUSE_EDGE_FAILURE = 2;
+  LANE_CLOSE_CAUSE_SUBTREE_DEATH = 2;
   // The epoch under which the lane was authorized was retired.
   LANE_CLOSE_CAUSE_EPOCH_RETIRED = 3;
   // A dock's current generation differs from the generation the lane was

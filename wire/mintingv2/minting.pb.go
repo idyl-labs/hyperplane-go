@@ -117,8 +117,8 @@ type MintSessionSvidRequest struct {
 	// requester.
 	CsrDer               []byte               `protobuf:"bytes,1,opt,name=csr_der,json=csrDer,proto3" json:"csr_der,omitempty"`
 	SessionId            string               `protobuf:"bytes,2,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	SessionKind          commonv2.SessionKind `protobuf:"varint,3,opt,name=session_kind,json=sessionKind,proto3,enum=idyl.common.v2.SessionKind" json:"session_kind,omitempty"`
-	SessionLeg           commonv2.SessionLeg  `protobuf:"varint,4,opt,name=session_leg,json=sessionLeg,proto3,enum=idyl.common.v2.SessionLeg" json:"session_leg,omitempty"`
+	SessionKind          commonv2.SessionKind `protobuf:"varint,3,opt,name=session_kind,json=sessionKind,proto3,enum=idyl.membership.v2.SessionKind" json:"session_kind,omitempty"`
+	SessionLeg           commonv2.SessionLeg  `protobuf:"varint,4,opt,name=session_leg,json=sessionLeg,proto3,enum=idyl.membership.v2.SessionLeg" json:"session_leg,omitempty"`
 	PodId                string               `protobuf:"bytes,5,opt,name=pod_id,json=podId,proto3" json:"pod_id,omitempty"`
 	AssignmentGeneration int64                `protobuf:"varint,6,opt,name=assignment_generation,json=assignmentGeneration,proto3" json:"assignment_generation,omitempty"`
 	GrantId              string               `protobuf:"bytes,7,opt,name=grant_id,json=grantId,proto3" json:"grant_id,omitempty"` // required only for proxy leg
@@ -567,17 +567,17 @@ var File_idyl_minting_v2_minting_proto protoreflect.FileDescriptor
 
 const file_idyl_minting_v2_minting_proto_rawDesc = "" +
 	"\n" +
-	"\x1didyl/minting/v2/minting.proto\x12\x0fidyl.minting.v2\x1a\x1bidyl/common/v2/common.proto\x1a\x19idyl/trust/v1/trust.proto\"y\n" +
+	"\x1didyl/minting/v2/minting.proto\x12\x0fidyl.minting.v2\x1a\x1fidyl/membership/v2/common.proto\x1a\x19idyl/trust/v1/trust.proto\"y\n" +
 	"\x12MintPodSvidRequest\x12\x17\n" +
 	"\acsr_der\x18\x01 \x01(\fR\x06csrDer\x12\x15\n" +
 	"\x06pod_id\x18\x02 \x01(\tR\x05podId\x123\n" +
-	"\x15assignment_generation\x18\x03 \x01(\x03R\x14assignmentGeneration\"\xdf\x02\n" +
+	"\x15assignment_generation\x18\x03 \x01(\x03R\x14assignmentGeneration\"\xe7\x02\n" +
 	"\x16MintSessionSvidRequest\x12\x17\n" +
 	"\acsr_der\x18\x01 \x01(\fR\x06csrDer\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x02 \x01(\tR\tsessionId\x12>\n" +
-	"\fsession_kind\x18\x03 \x01(\x0e2\x1b.idyl.common.v2.SessionKindR\vsessionKind\x12;\n" +
-	"\vsession_leg\x18\x04 \x01(\x0e2\x1a.idyl.common.v2.SessionLegR\n" +
+	"session_id\x18\x02 \x01(\tR\tsessionId\x12B\n" +
+	"\fsession_kind\x18\x03 \x01(\x0e2\x1f.idyl.membership.v2.SessionKindR\vsessionKind\x12?\n" +
+	"\vsession_leg\x18\x04 \x01(\x0e2\x1e.idyl.membership.v2.SessionLegR\n" +
 	"sessionLeg\x12\x15\n" +
 	"\x06pod_id\x18\x05 \x01(\tR\x05podId\x123\n" +
 	"\x15assignment_generation\x18\x06 \x01(\x03R\x14assignmentGeneration\x12\x19\n" +
@@ -628,13 +628,13 @@ var file_idyl_minting_v2_minting_proto_goTypes = []any{
 	(*Refusal)(nil),                     // 4: idyl.minting.v2.Refusal
 	(*MintPodSvidReply)(nil),            // 5: idyl.minting.v2.MintPodSvidReply
 	(*MintSessionSvidReply)(nil),        // 6: idyl.minting.v2.MintSessionSvidReply
-	(commonv2.SessionKind)(0),           // 7: idyl.common.v2.SessionKind
-	(commonv2.SessionLeg)(0),            // 8: idyl.common.v2.SessionLeg
+	(commonv2.SessionKind)(0),           // 7: idyl.membership.v2.SessionKind
+	(commonv2.SessionLeg)(0),            // 8: idyl.membership.v2.SessionLeg
 	(*trustv1.TrustSnapshot)(nil),       // 9: idyl.trust.v1.TrustSnapshot
 }
 var file_idyl_minting_v2_minting_proto_depIdxs = []int32{
-	7, // 0: idyl.minting.v2.MintSessionSvidRequest.session_kind:type_name -> idyl.common.v2.SessionKind
-	8, // 1: idyl.minting.v2.MintSessionSvidRequest.session_leg:type_name -> idyl.common.v2.SessionLeg
+	7, // 0: idyl.minting.v2.MintSessionSvidRequest.session_kind:type_name -> idyl.membership.v2.SessionKind
+	8, // 1: idyl.minting.v2.MintSessionSvidRequest.session_leg:type_name -> idyl.membership.v2.SessionLeg
 	9, // 2: idyl.minting.v2.PodCredentialGeneration.trust_snapshot:type_name -> idyl.trust.v1.TrustSnapshot
 	9, // 3: idyl.minting.v2.SessionCredentialGeneration.trust_snapshot:type_name -> idyl.trust.v1.TrustSnapshot
 	2, // 4: idyl.minting.v2.MintPodSvidReply.generation:type_name -> idyl.minting.v2.PodCredentialGeneration
