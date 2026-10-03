@@ -453,7 +453,7 @@ func TestQUICKeepaliveIsSingleZeroByteDatagram(t *testing.T) {
 // window keeps a dock that sends keepalives, and ends one whose keepalives
 // are disabled: the negative control shows the window is real.
 func TestFallbackKeepaliveHoldsEdgeIdleWindowOpen(t *testing.T) {
-	const idle = 200 * time.Millisecond
+	const idle = 500 * time.Millisecond
 	pki := newTestPKI(t)
 	ln, err := tls.Listen("tcp", "127.0.0.1:0", &tls.Config{
 		Certificates: []tls.Certificate{pki.serverCert}, NextProtos: []string{fallback.ALPN}, MinVersion: tls.VersionTLS13,
@@ -469,6 +469,16 @@ func TestFallbackKeepaliveHoldsEdgeIdleWindowOpen(t *testing.T) {
 				return
 			}
 			go func() {
+				// Finish the TLS handshake before the idle window starts, so
+				// the window measures only dock traffic, however slow the
+				// handshake is on a loaded machine.
+				hctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+				err := raw.(*tls.Conn).HandshakeContext(hctx)
+				cancel()
+				if err != nil {
+					_ = raw.Close()
+					return
+				}
 				mux := fallback.Server(raw, idle)
 				s, err := mux.AcceptStream(context.Background())
 				if err != nil {

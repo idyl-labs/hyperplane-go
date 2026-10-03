@@ -332,6 +332,13 @@ func (c *Conn) handleOpen(typ byte, sid uint32) bool {
 		return false
 	}
 	c.mu.Lock()
+	if c.dead {
+		// The connection failed after this frame was read. fail has
+		// already terminated every registered stream, so a stream
+		// registered now would never be terminated.
+		c.mu.Unlock()
+		return false
+	}
 	if sid <= c.maxPeerSID {
 		c.mu.Unlock()
 		c.fail(fmt.Errorf("%w: stream %d reopened", ErrProtocol, sid))
