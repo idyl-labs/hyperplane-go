@@ -84,6 +84,13 @@
 // ends exactly once; Lane.Closed then fires and Lane.CloseCause reports
 // why. An ended lane never comes back.
 //
+// A lane granted wire.LaneClassFlow also carries flows: best-effort
+// datagrams sent with Lane.SendFlow and received with Lane.ReceiveFlow,
+// each tagged with a flow id the sender chooses. Flows need QUIC. Each
+// lane queues at most 64 received items and drops the oldest when full,
+// and nothing reports a lost datagram, so an application that needs
+// delivery uses lane streams.
+//
 // Inbound RPC streams and lane streams share the dock's connection. The
 // client reads the first byte of each inbound stream to tell them apart,
 // so all three Accept methods can be used on one dock at the same time.
@@ -122,9 +129,24 @@
 // Only a failure to connect triggers the fallback. A refusal from the
 // edge, such as ErrOverloaded, is an answer and is returned as is. The
 // fallback carries every stream shape a dock uses, but it has fewer
-// properties than QUIC: no datagrams, no connection migration, and
-// head-of-line blocking across streams. Dock.Transport reports which
-// transport a dock uses.
+// properties than QUIC: no datagrams (so no lane flows), no connection
+// migration, and head-of-line blocking across streams. Dock.Transport
+// reports which transport a dock uses.
+//
+// # Building stream protocols
+//
+// Three building blocks serve a stream protocol that this package does
+// not implement itself, run on a dock's connection:
+//
+//	Dock.OpenStream  a new bidirectional Stream on the connection, with
+//	                 nothing written; its first byte selects the protocol
+//	                 at the edge
+//	Dock.WaitLane    the lane with a given id, once its LaneAttached
+//	                 arrives, for a protocol whose reply names a lane
+//	NewRPC           an *RPC over a Stream, for a protocol that
+//	                 establishes an RPC
+//
+// Lanes, RPCs and events, as described above, need none of them.
 //
 // # Session resumption
 //

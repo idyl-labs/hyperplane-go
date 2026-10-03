@@ -33,7 +33,7 @@ import (
 // dock_fuzz_test.go: fuzz targets for every place the dock reads bytes
 // the edge controls: the first byte and attribution header of an inbound
 // bidirectional stream (and the RPC preface behind it), the control
-// stream, and pushed event frames. Each target checks the outcome against
+// stream, pushed event frames, and inbound datagrams. Each target checks the outcome against
 // the documented contract, not only the absence of a panic.
 
 // bytesStream is a transportStream that serves fixed bytes and then EOF,
@@ -333,6 +333,69 @@ func FuzzEventPush(f *testing.F) {
 		}
 		if !s.untouched() || s.r.Len() != 0 {
 			t.Fatalf("accepted event stream: cancels %v, %d bytes left unread", s.cancelRead, s.r.Len())
+		}
+	})
+}
+
+// oneDatagram serves one datagram and then reports the connection ended,
+// so datagramPump can be driven synchronously.
+type oneDatagram struct{ b []byte }
+
+func (o *oneDatagram) SendDatagram([]byte) error { return nil }
+
+func (o *oneDatagram) ReceiveDatagram(context.Context) ([]byte, error) {
+	if o.b == nil {
+		return nil, io.EOF
+	}
+	b := o.b
+	o.b = nil
+	return b, nil
+}
+
+// FuzzInboundDatagram feeds arbitrary bytes as one inbound datagram to a
+// dock holding a flow lane (5), a stream-only lane (3) and an ended flow
+// lane (8). The contract: a datagram that parses as a flow item for lane
+// 5 is queued on lane 5 exactly once with its flow id and payload;
+// anything else, including keepalives, malformed attribution and items
+// for the other lanes, is queued nowhere.
+func FuzzInboundDatagram(f *testing.F) {
+	f.Add([]byte{0x05, 0x01, 'p'})
+	f.Add([]byte{0x05, 0xAC, 0x02})
+	f.Add([]byte{0x03, 0x01, 'p'})
+	f.Add([]byte{0x08, 0x01, 'p'})
+	f.Add([]byte{0x00})
+	f.Add([]byte{0x85, 0x00, 0x01, 'p'})
+	f.Add([]byte{0x05})
+	f.Add([]byte{})
+
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		d := &Dock{conn: newLaneConn(), drained: make(chan struct{})}
+		d.laneAttached(&dockpb.LaneAttached{LaneId: 5, LaneClass: wire.LaneClassFlow})
+		d.laneAttached(&dockpb.LaneAttached{LaneId: 3, LaneClass: wire.LaneClassStream})
+		d.laneAttached(&dockpb.LaneAttached{LaneId: 8, LaneClass: wire.LaneClassFlow})
+		d.laneClosed(&dockpb.LaneClosed{LaneId: 8, Cause: dockpb.LaneCloseCause_LANE_CLOSE_CAUSE_DRAINED})
+		set := d.laneset()
+		flowLane, streamLane := set.lanes[5], set.lanes[3]
+
+		d.datagramPump(set, &oneDatagram{b: raw})
+
+		want, keepalive, err := wire.ParseLaneDatagram(raw)
+		accepted := err == nil && !keepalive && want.LaneID == 5
+		if n := len(streamLane.flows); n != 0 {
+			t.Fatalf("stream-only lane queued %d items", n)
+		}
+		if !accepted {
+			if n := len(flowLane.flows); n != 0 {
+				t.Fatalf("datagram %x queued %d items, want none", raw, n)
+			}
+			return
+		}
+		if len(flowLane.flows) != 1 {
+			t.Fatalf("datagram %x queued %d items, want 1", raw, len(flowLane.flows))
+		}
+		got := flowLane.flows[0]
+		if got.flowID != want.FlowID || !bytes.Equal(got.payload, want.Payload) {
+			t.Fatalf("queued (%d, %x), want (%d, %x)", got.flowID, got.payload, want.FlowID, want.Payload)
 		}
 	})
 }

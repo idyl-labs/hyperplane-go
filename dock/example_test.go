@@ -30,6 +30,7 @@ import (
 
 	"github.com/idyl-labs/hyperplane-go/dock"
 	"github.com/idyl-labs/hyperplane-go/generation"
+	"github.com/idyl-labs/hyperplane-go/wire"
 )
 
 // The client's credentials. A real client obtains its X.509 SVID, the
@@ -178,6 +179,44 @@ func ExampleDock_AcceptRPC() {
 			conn := dock.NewRPCConn(rpc, nil) // the dock outlives the RPC
 			defer func() { _ = conn.Close() }()
 			_, _ = io.Copy(conn, conn) // a real report session runs here
+		}()
+	}
+}
+
+// Echo the flows on every lane granted the flow class. Flows are
+// best-effort datagrams: an item may be lost, and the echo is a new send
+// that may be lost too.
+func ExampleLane_ReceiveFlow() {
+	ctx := context.Background()
+	d, err := dock.Open(ctx, dock.Config{
+		Endpoint: edgeEndpoint, ServerID: edgeID,
+		SVID: svid, Bundles: bundles,
+		Admission: &dock.DemandAdmission{
+			LeaseEnvelope: lease, Signer: svidKey,
+		},
+	})
+	if err != nil {
+		fmt.Println("open:", err)
+		return
+	}
+	defer func() { _ = d.Close() }()
+
+	for {
+		lane, err := d.AcceptLane(ctx)
+		if err != nil {
+			return // the dock ended or ctx was canceled
+		}
+		if lane.Classes()&wire.LaneClassFlow == 0 {
+			continue // this lane carries streams only
+		}
+		go func() {
+			for {
+				flowID, payload, err := lane.ReceiveFlow(ctx)
+				if err != nil {
+					return // ErrLaneClosed once the lane has ended
+				}
+				_ = lane.SendFlow(flowID, payload) // best-effort, like the item it answers
+			}
 		}()
 	}
 }

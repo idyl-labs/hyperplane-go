@@ -70,6 +70,7 @@ type Lane struct {
 	cause  dockpb.LaneCloseCause
 
 	streams []*LaneStream // accepted and attributed, not yet claimed by AcceptStream
+	flows   []laneFlow    // received flow datagrams, not yet claimed by ReceiveFlow
 }
 
 // ID is the lane's identifier. It is scoped to this dock's connection:
@@ -251,6 +252,50 @@ func (d *Dock) AcceptLane(ctx context.Context) (*Lane, error) {
 	}
 }
 
+// WaitLane blocks until the lane with the given id has attached to this
+// dock, and returns it. It serves a dock that learns a lane's id before
+// the lane is announced: when a stream protocol on Dock.OpenStream
+// establishes a lane with this dock as one end, the edge's reply can
+// name the lane before the LaneAttached that announces it has arrived on
+// the control stream.
+//
+// A lane returned by WaitLane is claimed: AcceptLane does not return it
+// as well. If AcceptLane has already returned the lane, WaitLane returns
+// the same *Lane. A lane that ended before it was found returns
+// ErrLaneClosed with its cause. Like AcceptLane, WaitLane starts the
+// dock's inbound dispatch, and it returns when ctx is canceled or the
+// dock ends.
+func (d *Dock) WaitLane(ctx context.Context, id uint64) (*Lane, error) {
+	d.ensurePump()
+	set := d.laneset()
+	for {
+		set.mu.Lock()
+		if l, ok := set.lanes[id]; ok {
+			for i, p := range set.pending {
+				if p == l {
+					set.pending = append(set.pending[:i], set.pending[i+1:]...)
+					break
+				}
+			}
+			set.mu.Unlock()
+			return l, nil
+		}
+		if cause, gone := set.dead[id]; gone {
+			set.mu.Unlock()
+			return nil, fmt.Errorf("%w (%s)", ErrLaneClosed, cause)
+		}
+		ch := set.changed
+		set.mu.Unlock()
+		select {
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		case <-d.conn.Context().Done():
+			return nil, d.conn.Context().Err()
+		case <-ch:
+		}
+	}
+}
+
 // laneSet is the dock's lane registry plus the inbound bidi-stream
 // dispatch state. One mutex guards it all; changed is closed and replaced
 // on every mutation (broadcast), so waiters re-check under the lock.
@@ -369,6 +414,8 @@ func (d *Dock) laneClosed(lc *dockpb.LaneClosed) {
 		return // never attached here; recorded so the id stays ended
 	}
 	delete(set.lanes, id)
+	// Datagram state ends with the lane: its queued flow items are dropped.
+	l.flows = nil
 	// Streams not yet claimed end with the lane. The local reset carries
 	// code 0, the code used for teardown (receivers do not interpret
 	// teardown codes), and each stream's backlog slot is returned.
@@ -386,14 +433,21 @@ func (d *Dock) laneClosed(lc *dockpb.LaneClosed) {
 	set.broadcast()
 }
 
-// ensurePump starts the inbound bidirectional stream dispatch exactly
-// once. Every consumer of inbound streams (AcceptRPC, AcceptLane and
-// Lane.AcceptStream) goes through it; two callers accepting streams
-// directly would each take streams meant for the other.
+// ensurePump starts the inbound bidirectional stream dispatch, and on
+// QUIC the datagram dispatch, exactly once. Every consumer of inbound
+// streams or datagrams (AcceptRPC, AcceptLane, WaitLane,
+// Lane.AcceptStream and Lane.ReceiveFlow) goes through it; two callers
+// accepting streams directly would each take streams meant for the other.
 func (d *Dock) ensurePump() {
 	set := d.laneset()
 	set.pump.Do(func() {
 		go d.acceptPump(set)
+		// The datagram plane exists only on QUIC. Where the connection
+		// offers it, one pump drains every inbound datagram: flows to
+		// their lane, the keepalive form and violations to nowhere.
+		if dg, ok := d.conn.(transportDatagramConn); ok {
+			go d.datagramPump(set, dg)
+		}
 	})
 }
 
