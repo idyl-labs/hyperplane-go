@@ -21,7 +21,7 @@ syntax = "proto3";
 //
 // Evolution is additive: decoders must ignore unknown fields, and encoders
 // must never change the meaning or type of an existing field number.
-package idyl.common.v2;
+package idyl.membership.v2;
 
 option go_package = "github.com/idyl-labs/hyperplane-go/wire/commonv2";
 

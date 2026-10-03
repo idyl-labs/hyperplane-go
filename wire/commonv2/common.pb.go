@@ -16,7 +16,7 @@
 // versions:
 // 	protoc-gen-go v1.36.11
 // 	protoc        (unknown)
-// source: idyl/common/v2/common.proto
+// source: idyl/membership/v2/common.proto
 
 // This file defines the identifier types and enums shared by the Hyperplane
 // wire contracts: the edge and dock generation identifiers (EdgeTag,
@@ -98,11 +98,11 @@ func (x EndpointKind) String() string {
 }
 
 func (EndpointKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_idyl_common_v2_common_proto_enumTypes[0].Descriptor()
+	return file_idyl_membership_v2_common_proto_enumTypes[0].Descriptor()
 }
 
 func (EndpointKind) Type() protoreflect.EnumType {
-	return &file_idyl_common_v2_common_proto_enumTypes[0]
+	return &file_idyl_membership_v2_common_proto_enumTypes[0]
 }
 
 func (x EndpointKind) Number() protoreflect.EnumNumber {
@@ -111,7 +111,7 @@ func (x EndpointKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use EndpointKind.Descriptor instead.
 func (EndpointKind) EnumDescriptor() ([]byte, []int) {
-	return file_idyl_common_v2_common_proto_rawDescGZIP(), []int{0}
+	return file_idyl_membership_v2_common_proto_rawDescGZIP(), []int{0}
 }
 
 // SessionKind classifies a session principal. It applies only to the session
@@ -152,11 +152,11 @@ func (x SessionKind) String() string {
 }
 
 func (SessionKind) Descriptor() protoreflect.EnumDescriptor {
-	return file_idyl_common_v2_common_proto_enumTypes[1].Descriptor()
+	return file_idyl_membership_v2_common_proto_enumTypes[1].Descriptor()
 }
 
 func (SessionKind) Type() protoreflect.EnumType {
-	return &file_idyl_common_v2_common_proto_enumTypes[1]
+	return &file_idyl_membership_v2_common_proto_enumTypes[1]
 }
 
 func (x SessionKind) Number() protoreflect.EnumNumber {
@@ -165,7 +165,7 @@ func (x SessionKind) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SessionKind.Descriptor instead.
 func (SessionKind) EnumDescriptor() ([]byte, []int) {
-	return file_idyl_common_v2_common_proto_rawDescGZIP(), []int{1}
+	return file_idyl_membership_v2_common_proto_rawDescGZIP(), []int{1}
 }
 
 // SessionLeg distinguishes the two endpoint certificates that take part in
@@ -204,11 +204,11 @@ func (x SessionLeg) String() string {
 }
 
 func (SessionLeg) Descriptor() protoreflect.EnumDescriptor {
-	return file_idyl_common_v2_common_proto_enumTypes[2].Descriptor()
+	return file_idyl_membership_v2_common_proto_enumTypes[2].Descriptor()
 }
 
 func (SessionLeg) Type() protoreflect.EnumType {
-	return &file_idyl_common_v2_common_proto_enumTypes[2]
+	return &file_idyl_membership_v2_common_proto_enumTypes[2]
 }
 
 func (x SessionLeg) Number() protoreflect.EnumNumber {
@@ -217,7 +217,7 @@ func (x SessionLeg) Number() protoreflect.EnumNumber {
 
 // Deprecated: Use SessionLeg.Descriptor instead.
 func (SessionLeg) EnumDescriptor() ([]byte, []int) {
-	return file_idyl_common_v2_common_proto_rawDescGZIP(), []int{2}
+	return file_idyl_membership_v2_common_proto_rawDescGZIP(), []int{2}
 }
 
 // EdgeTag identifies one edge process incarnation serving under one lease.
@@ -232,7 +232,7 @@ type EdgeTag struct {
 
 func (x *EdgeTag) Reset() {
 	*x = EdgeTag{}
-	mi := &file_idyl_common_v2_common_proto_msgTypes[0]
+	mi := &file_idyl_membership_v2_common_proto_msgTypes[0]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -244,7 +244,7 @@ func (x *EdgeTag) String() string {
 func (*EdgeTag) ProtoMessage() {}
 
 func (x *EdgeTag) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_common_v2_common_proto_msgTypes[0]
+	mi := &file_idyl_membership_v2_common_proto_msgTypes[0]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -257,7 +257,7 @@ func (x *EdgeTag) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EdgeTag.ProtoReflect.Descriptor instead.
 func (*EdgeTag) Descriptor() ([]byte, []int) {
-	return file_idyl_common_v2_common_proto_rawDescGZIP(), []int{0}
+	return file_idyl_membership_v2_common_proto_rawDescGZIP(), []int{0}
 }
 
 func (x *EdgeTag) GetIncarnation() []byte {
@@ -294,7 +294,7 @@ type DockGen struct {
 
 func (x *DockGen) Reset() {
 	*x = DockGen{}
-	mi := &file_idyl_common_v2_common_proto_msgTypes[1]
+	mi := &file_idyl_membership_v2_common_proto_msgTypes[1]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -306,7 +306,7 @@ func (x *DockGen) String() string {
 func (*DockGen) ProtoMessage() {}
 
 func (x *DockGen) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_common_v2_common_proto_msgTypes[1]
+	mi := &file_idyl_membership_v2_common_proto_msgTypes[1]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -319,7 +319,7 @@ func (x *DockGen) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use DockGen.ProtoReflect.Descriptor instead.
 func (*DockGen) Descriptor() ([]byte, []int) {
-	return file_idyl_common_v2_common_proto_rawDescGZIP(), []int{1}
+	return file_idyl_membership_v2_common_proto_rawDescGZIP(), []int{1}
 }
 
 func (x *DockGen) GetEdge() *EdgeTag {
@@ -350,16 +350,16 @@ func (x *DockGen) GetNonce() []byte {
 	return nil
 }
 
-var File_idyl_common_v2_common_proto protoreflect.FileDescriptor
+var File_idyl_membership_v2_common_proto protoreflect.FileDescriptor
 
-const file_idyl_common_v2_common_proto_rawDesc = "" +
+const file_idyl_membership_v2_common_proto_rawDesc = "" +
 	"\n" +
-	"\x1bidyl/common/v2/common.proto\x12\x0eidyl.common.v2\"F\n" +
+	"\x1fidyl/membership/v2/common.proto\x12\x12idyl.membership.v2\"F\n" +
 	"\aEdgeTag\x12 \n" +
 	"\vincarnation\x18\x01 \x01(\fR\vincarnation\x12\x19\n" +
-	"\blease_id\x18\x02 \x01(\fR\aleaseId\"\x7f\n" +
-	"\aDockGen\x12+\n" +
-	"\x04edge\x18\x01 \x01(\v2\x17.idyl.common.v2.EdgeTagR\x04edge\x12\x12\n" +
+	"\blease_id\x18\x02 \x01(\fR\aleaseId\"\x83\x01\n" +
+	"\aDockGen\x12/\n" +
+	"\x04edge\x18\x01 \x01(\v2\x1b.idyl.membership.v2.EdgeTagR\x04edge\x12\x12\n" +
 	"\x04slot\x18\x02 \x01(\rR\x04slot\x12\x1d\n" +
 	"\n" +
 	"slot_epoch\x18\x03 \x01(\rR\tslotEpoch\x12\x14\n" +
@@ -383,28 +383,28 @@ const file_idyl_common_v2_common_proto_rawDesc = "" +
 	"\x11SESSION_LEG_PROXY\x10\x02B2Z0github.com/idyl-labs/hyperplane-go/wire/commonv2b\x06proto3"
 
 var (
-	file_idyl_common_v2_common_proto_rawDescOnce sync.Once
-	file_idyl_common_v2_common_proto_rawDescData []byte
+	file_idyl_membership_v2_common_proto_rawDescOnce sync.Once
+	file_idyl_membership_v2_common_proto_rawDescData []byte
 )
 
-func file_idyl_common_v2_common_proto_rawDescGZIP() []byte {
-	file_idyl_common_v2_common_proto_rawDescOnce.Do(func() {
-		file_idyl_common_v2_common_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_idyl_common_v2_common_proto_rawDesc), len(file_idyl_common_v2_common_proto_rawDesc)))
+func file_idyl_membership_v2_common_proto_rawDescGZIP() []byte {
+	file_idyl_membership_v2_common_proto_rawDescOnce.Do(func() {
+		file_idyl_membership_v2_common_proto_rawDescData = protoimpl.X.CompressGZIP(unsafe.Slice(unsafe.StringData(file_idyl_membership_v2_common_proto_rawDesc), len(file_idyl_membership_v2_common_proto_rawDesc)))
 	})
-	return file_idyl_common_v2_common_proto_rawDescData
+	return file_idyl_membership_v2_common_proto_rawDescData
 }
 
-var file_idyl_common_v2_common_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
-var file_idyl_common_v2_common_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
-var file_idyl_common_v2_common_proto_goTypes = []any{
-	(EndpointKind)(0), // 0: idyl.common.v2.EndpointKind
-	(SessionKind)(0),  // 1: idyl.common.v2.SessionKind
-	(SessionLeg)(0),   // 2: idyl.common.v2.SessionLeg
-	(*EdgeTag)(nil),   // 3: idyl.common.v2.EdgeTag
-	(*DockGen)(nil),   // 4: idyl.common.v2.DockGen
+var file_idyl_membership_v2_common_proto_enumTypes = make([]protoimpl.EnumInfo, 3)
+var file_idyl_membership_v2_common_proto_msgTypes = make([]protoimpl.MessageInfo, 2)
+var file_idyl_membership_v2_common_proto_goTypes = []any{
+	(EndpointKind)(0), // 0: idyl.membership.v2.EndpointKind
+	(SessionKind)(0),  // 1: idyl.membership.v2.SessionKind
+	(SessionLeg)(0),   // 2: idyl.membership.v2.SessionLeg
+	(*EdgeTag)(nil),   // 3: idyl.membership.v2.EdgeTag
+	(*DockGen)(nil),   // 4: idyl.membership.v2.DockGen
 }
-var file_idyl_common_v2_common_proto_depIdxs = []int32{
-	3, // 0: idyl.common.v2.DockGen.edge:type_name -> idyl.common.v2.EdgeTag
+var file_idyl_membership_v2_common_proto_depIdxs = []int32{
+	3, // 0: idyl.membership.v2.DockGen.edge:type_name -> idyl.membership.v2.EdgeTag
 	1, // [1:1] is the sub-list for method output_type
 	1, // [1:1] is the sub-list for method input_type
 	1, // [1:1] is the sub-list for extension type_name
@@ -412,27 +412,27 @@ var file_idyl_common_v2_common_proto_depIdxs = []int32{
 	0, // [0:1] is the sub-list for field type_name
 }
 
-func init() { file_idyl_common_v2_common_proto_init() }
-func file_idyl_common_v2_common_proto_init() {
-	if File_idyl_common_v2_common_proto != nil {
+func init() { file_idyl_membership_v2_common_proto_init() }
+func file_idyl_membership_v2_common_proto_init() {
+	if File_idyl_membership_v2_common_proto != nil {
 		return
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
 		File: protoimpl.DescBuilder{
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
-			RawDescriptor: unsafe.Slice(unsafe.StringData(file_idyl_common_v2_common_proto_rawDesc), len(file_idyl_common_v2_common_proto_rawDesc)),
+			RawDescriptor: unsafe.Slice(unsafe.StringData(file_idyl_membership_v2_common_proto_rawDesc), len(file_idyl_membership_v2_common_proto_rawDesc)),
 			NumEnums:      3,
 			NumMessages:   2,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
-		GoTypes:           file_idyl_common_v2_common_proto_goTypes,
-		DependencyIndexes: file_idyl_common_v2_common_proto_depIdxs,
-		EnumInfos:         file_idyl_common_v2_common_proto_enumTypes,
-		MessageInfos:      file_idyl_common_v2_common_proto_msgTypes,
+		GoTypes:           file_idyl_membership_v2_common_proto_goTypes,
+		DependencyIndexes: file_idyl_membership_v2_common_proto_depIdxs,
+		EnumInfos:         file_idyl_membership_v2_common_proto_enumTypes,
+		MessageInfos:      file_idyl_membership_v2_common_proto_msgTypes,
 	}.Build()
-	File_idyl_common_v2_common_proto = out.File
-	file_idyl_common_v2_common_proto_goTypes = nil
-	file_idyl_common_v2_common_proto_depIdxs = nil
+	File_idyl_membership_v2_common_proto = out.File
+	file_idyl_membership_v2_common_proto_goTypes = nil
+	file_idyl_membership_v2_common_proto_depIdxs = nil
 }

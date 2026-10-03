@@ -193,12 +193,12 @@ type ZoneAdmissionLeasePayload struct {
 	Version     uint32                 `protobuf:"varint,1,opt,name=version,proto3" json:"version,omitempty"`               // exactly 3; any other version is refused
 	LeaseId     []byte                 `protobuf:"bytes,2,opt,name=lease_id,json=leaseId,proto3" json:"lease_id,omitempty"` // 16 opaque issuer bytes; audit only
 	Zone        string                 `protobuf:"bytes,3,opt,name=zone,proto3" json:"zone,omitempty"`
-	FabricPlane commonv2.Plane         `protobuf:"varint,4,opt,name=fabric_plane,json=fabricPlane,proto3,enum=idyl.common.v2.Plane" json:"fabric_plane,omitempty"`
+	FabricPlane commonv2.Plane         `protobuf:"varint,4,opt,name=fabric_plane,json=fabricPlane,proto3,enum=idyl.membership.v2.Plane" json:"fabric_plane,omitempty"`
 	// Exact authenticated connection SVID URI. Node, pod, session and share
 	// principals all use the zone SPIFFE trust domain.
 	Principal         string                `protobuf:"bytes,5,opt,name=principal,proto3" json:"principal,omitempty"`
 	SubjectSpkiSha256 []byte                `protobuf:"bytes,6,opt,name=subject_spki_sha256,json=subjectSpkiSha256,proto3" json:"subject_spki_sha256,omitempty"`
-	EndpointKind      commonv2.EndpointKind `protobuf:"varint,7,opt,name=endpoint_kind,json=endpointKind,proto3,enum=idyl.common.v2.EndpointKind" json:"endpoint_kind,omitempty"`
+	EndpointKind      commonv2.EndpointKind `protobuf:"varint,7,opt,name=endpoint_kind,json=endpointKind,proto3,enum=idyl.membership.v2.EndpointKind" json:"endpoint_kind,omitempty"`
 	SubnetId          string                `protobuf:"bytes,8,opt,name=subnet_id,json=subnetId,proto3" json:"subnet_id,omitempty"`
 	OwnerScope        string                `protobuf:"bytes,9,opt,name=owner_scope,json=ownerScope,proto3" json:"owner_scope,omitempty"`
 	AccountId         string                `protobuf:"bytes,10,opt,name=account_id,json=accountId,proto3" json:"account_id,omitempty"`
@@ -214,8 +214,8 @@ type ZoneAdmissionLeasePayload struct {
 	PodInstanceId        string               `protobuf:"bytes,15,opt,name=pod_instance_id,json=podInstanceId,proto3" json:"pod_instance_id,omitempty"`
 	AssignmentGeneration uint64               `protobuf:"varint,16,opt,name=assignment_generation,json=assignmentGeneration,proto3" json:"assignment_generation,omitempty"`
 	SessionId            string               `protobuf:"bytes,17,opt,name=session_id,json=sessionId,proto3" json:"session_id,omitempty"`
-	SessionKind          commonv2.SessionKind `protobuf:"varint,18,opt,name=session_kind,json=sessionKind,proto3,enum=idyl.common.v2.SessionKind" json:"session_kind,omitempty"`
-	SessionLeg           commonv2.SessionLeg  `protobuf:"varint,19,opt,name=session_leg,json=sessionLeg,proto3,enum=idyl.common.v2.SessionLeg" json:"session_leg,omitempty"`
+	SessionKind          commonv2.SessionKind `protobuf:"varint,18,opt,name=session_kind,json=sessionKind,proto3,enum=idyl.membership.v2.SessionKind" json:"session_kind,omitempty"`
+	SessionLeg           commonv2.SessionLeg  `protobuf:"varint,19,opt,name=session_leg,json=sessionLeg,proto3,enum=idyl.membership.v2.SessionLeg" json:"session_leg,omitempty"`
 	GrantId              string               `protobuf:"bytes,20,opt,name=grant_id,json=grantId,proto3" json:"grant_id,omitempty"` // proxy leg only; client leg has no proxy grant
 	// Adapter classes the endpoint may serve, as a bitset: 0 control dock,
 	// 1 rpc, 2 stream, 3 flow, 4 ingress target, 5 splice, 6 federation. It
@@ -573,21 +573,21 @@ var File_idyl_admission_v3_admission_proto protoreflect.FileDescriptor
 
 const file_idyl_admission_v3_admission_proto_rawDesc = "" +
 	"\n" +
-	"!idyl/admission/v3/admission.proto\x12\x11idyl.admission.v3\x1a\x1bidyl/common/v2/common.proto\x1a\x1aidyl/common/v2/plane.proto\"\xb8\x01\n" +
+	"!idyl/admission/v3/admission.proto\x12\x11idyl.admission.v3\x1a\x1fidyl/membership/v2/common.proto\x1a\x1eidyl/membership/v2/plane.proto\"\xb8\x01\n" +
 	"\x12ZoneAdmissionLease\x12\x1a\n" +
 	"\bcontract\x18\x01 \x01(\tR\bcontract\x12\x18\n" +
 	"\apayload\x18\x02 \x01(\fR\apayload\x12\x1c\n" +
 	"\tsignature\x18\x03 \x01(\fR\tsignature\x12\"\n" +
 	"\rsigner_key_id\x18\x04 \x01(\fR\vsignerKeyId\x12*\n" +
-	"\x11signer_cert_chain\x18\x05 \x03(\fR\x0fsignerCertChain\"\xbf\t\n" +
+	"\x11signer_cert_chain\x18\x05 \x03(\fR\x0fsignerCertChain\"\xcf\t\n" +
 	"\x19ZoneAdmissionLeasePayload\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x19\n" +
 	"\blease_id\x18\x02 \x01(\fR\aleaseId\x12\x12\n" +
-	"\x04zone\x18\x03 \x01(\tR\x04zone\x128\n" +
-	"\ffabric_plane\x18\x04 \x01(\x0e2\x15.idyl.common.v2.PlaneR\vfabricPlane\x12\x1c\n" +
+	"\x04zone\x18\x03 \x01(\tR\x04zone\x12<\n" +
+	"\ffabric_plane\x18\x04 \x01(\x0e2\x19.idyl.membership.v2.PlaneR\vfabricPlane\x12\x1c\n" +
 	"\tprincipal\x18\x05 \x01(\tR\tprincipal\x12.\n" +
-	"\x13subject_spki_sha256\x18\x06 \x01(\fR\x11subjectSpkiSha256\x12A\n" +
-	"\rendpoint_kind\x18\a \x01(\x0e2\x1c.idyl.common.v2.EndpointKindR\fendpointKind\x12\x1b\n" +
+	"\x13subject_spki_sha256\x18\x06 \x01(\fR\x11subjectSpkiSha256\x12E\n" +
+	"\rendpoint_kind\x18\a \x01(\x0e2 .idyl.membership.v2.EndpointKindR\fendpointKind\x12\x1b\n" +
 	"\tsubnet_id\x18\b \x01(\tR\bsubnetId\x12\x1f\n" +
 	"\vowner_scope\x18\t \x01(\tR\n" +
 	"ownerScope\x12\x1d\n" +
@@ -602,9 +602,9 @@ const file_idyl_admission_v3_admission_proto_rawDesc = "" +
 	"\x0fpod_instance_id\x18\x0f \x01(\tR\rpodInstanceId\x123\n" +
 	"\x15assignment_generation\x18\x10 \x01(\x04R\x14assignmentGeneration\x12\x1d\n" +
 	"\n" +
-	"session_id\x18\x11 \x01(\tR\tsessionId\x12>\n" +
-	"\fsession_kind\x18\x12 \x01(\x0e2\x1b.idyl.common.v2.SessionKindR\vsessionKind\x12;\n" +
-	"\vsession_leg\x18\x13 \x01(\x0e2\x1a.idyl.common.v2.SessionLegR\n" +
+	"session_id\x18\x11 \x01(\tR\tsessionId\x12B\n" +
+	"\fsession_kind\x18\x12 \x01(\x0e2\x1f.idyl.membership.v2.SessionKindR\vsessionKind\x12?\n" +
+	"\vsession_leg\x18\x13 \x01(\x0e2\x1e.idyl.membership.v2.SessionLegR\n" +
 	"sessionLeg\x12\x19\n" +
 	"\bgrant_id\x18\x14 \x01(\tR\agrantId\x12'\n" +
 	"\x0fadapter_classes\x18\x15 \x01(\x04R\x0eadapterClasses\x12,\n" +
@@ -615,15 +615,15 @@ const file_idyl_admission_v3_admission_proto_rawDesc = "" +
 	"\x10not_after_unix_s\x18\x1a \x01(\x04R\rnotAfterUnixS\x12G\n" +
 	"\x0enode_admission\x18\x1b \x01(\x0e2 .idyl.admission.v3.NodeAdmissionR\rnodeAdmission\x12'\n" +
 	"\x10issued_at_unix_s\x18\x1c \x01(\x04R\rissuedAtUnixS\x12\x19\n" +
-	"\bshare_id\x18\x1e \x01(\tR\ashareIdJ\x04\b\x1d\x10\x1eR\x0eworkload_scope\"\xb6\x02\n" +
+	"\bshare_id\x18\x1e \x01(\tR\ashareIdJ\x04\b\x1d\x10\x1eR\x0eworkload_scope\"\xba\x02\n" +
 	"\x0eDockProofInput\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12#\n" +
 	"\rdock_contract\x18\x02 \x01(\tR\fdockContract\x12%\n" +
 	"\x0eexporter_label\x18\x03 \x01(\tR\rexporterLabel\x12%\n" +
 	"\x0eexporter_value\x18\x04 \x01(\fR\rexporterValue\x122\n" +
 	"\x15lease_envelope_sha256\x18\x05 \x01(\fR\x13leaseEnvelopeSha256\x12!\n" +
-	"\fkeepalive_ms\x18\x06 \x01(\rR\vkeepaliveMs\x12@\n" +
-	"\x0fpredecessor_gen\x18\a \x01(\v2\x17.idyl.common.v2.DockGenR\x0epredecessorGen*L\n" +
+	"\fkeepalive_ms\x18\x06 \x01(\rR\vkeepaliveMs\x12D\n" +
+	"\x0fpredecessor_gen\x18\a \x01(\v2\x1b.idyl.membership.v2.DockGenR\x0epredecessorGen*L\n" +
 	"\rNodeAdmission\x12\x1e\n" +
 	"\x1aNODE_ADMISSION_UNSPECIFIED\x10\x00\x12\x1b\n" +
 	"\x17NODE_ADMISSION_PROVIDER\x10\x01B5Z3github.com/idyl-labs/hyperplane-go/wire/admissionv3b\x06proto3"
@@ -647,19 +647,19 @@ var file_idyl_admission_v3_admission_proto_goTypes = []any{
 	(*ZoneAdmissionLease)(nil),        // 1: idyl.admission.v3.ZoneAdmissionLease
 	(*ZoneAdmissionLeasePayload)(nil), // 2: idyl.admission.v3.ZoneAdmissionLeasePayload
 	(*DockProofInput)(nil),            // 3: idyl.admission.v3.DockProofInput
-	(commonv2.Plane)(0),               // 4: idyl.common.v2.Plane
-	(commonv2.EndpointKind)(0),        // 5: idyl.common.v2.EndpointKind
-	(commonv2.SessionKind)(0),         // 6: idyl.common.v2.SessionKind
-	(commonv2.SessionLeg)(0),          // 7: idyl.common.v2.SessionLeg
-	(*commonv2.DockGen)(nil),          // 8: idyl.common.v2.DockGen
+	(commonv2.Plane)(0),               // 4: idyl.membership.v2.Plane
+	(commonv2.EndpointKind)(0),        // 5: idyl.membership.v2.EndpointKind
+	(commonv2.SessionKind)(0),         // 6: idyl.membership.v2.SessionKind
+	(commonv2.SessionLeg)(0),          // 7: idyl.membership.v2.SessionLeg
+	(*commonv2.DockGen)(nil),          // 8: idyl.membership.v2.DockGen
 }
 var file_idyl_admission_v3_admission_proto_depIdxs = []int32{
-	4, // 0: idyl.admission.v3.ZoneAdmissionLeasePayload.fabric_plane:type_name -> idyl.common.v2.Plane
-	5, // 1: idyl.admission.v3.ZoneAdmissionLeasePayload.endpoint_kind:type_name -> idyl.common.v2.EndpointKind
-	6, // 2: idyl.admission.v3.ZoneAdmissionLeasePayload.session_kind:type_name -> idyl.common.v2.SessionKind
-	7, // 3: idyl.admission.v3.ZoneAdmissionLeasePayload.session_leg:type_name -> idyl.common.v2.SessionLeg
+	4, // 0: idyl.admission.v3.ZoneAdmissionLeasePayload.fabric_plane:type_name -> idyl.membership.v2.Plane
+	5, // 1: idyl.admission.v3.ZoneAdmissionLeasePayload.endpoint_kind:type_name -> idyl.membership.v2.EndpointKind
+	6, // 2: idyl.admission.v3.ZoneAdmissionLeasePayload.session_kind:type_name -> idyl.membership.v2.SessionKind
+	7, // 3: idyl.admission.v3.ZoneAdmissionLeasePayload.session_leg:type_name -> idyl.membership.v2.SessionLeg
 	0, // 4: idyl.admission.v3.ZoneAdmissionLeasePayload.node_admission:type_name -> idyl.admission.v3.NodeAdmission
-	8, // 5: idyl.admission.v3.DockProofInput.predecessor_gen:type_name -> idyl.common.v2.DockGen
+	8, // 5: idyl.admission.v3.DockProofInput.predecessor_gen:type_name -> idyl.membership.v2.DockGen
 	6, // [6:6] is the sub-list for method output_type
 	6, // [6:6] is the sub-list for method input_type
 	6, // [6:6] is the sub-list for extension type_name
