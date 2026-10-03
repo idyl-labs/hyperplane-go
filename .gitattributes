@@ -1,0 +1,5 @@
+# Check out text with LF line endings on every platform.
+* text=auto eol=lf
+
+# Conformance fixtures are pinned by digest, so their bytes are never converted.
+**/testdata/** -text

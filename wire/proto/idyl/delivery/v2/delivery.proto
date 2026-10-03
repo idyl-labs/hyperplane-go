@@ -1,0 +1,50 @@
+// Copyright 2026 Idyl Labs
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// This file defines the two prefaces with which an edge opens a delivery
+// stream to a dock: EventPush on a unidirectional stream and RpcOpen on a
+// bidirectional stream. Each is written as one frame: a 4-byte big-endian
+// length followed by the marshaled message.
+//
+// These messages carry no identity. The dock knows its own identity from its
+// SVID, and the fabric authorizes every delivery before the edge opens the
+// stream; there is no field in which either party could assert an identity.
+//
+// Lane streams on the same connection do not use these prefaces. A lane
+// stream begins with the raw lane stream header, whose first byte is the
+// lane stream kind (0x03). A delivery frame's first byte is always 0x00,
+// because the 1 MiB frame size limit keeps the high byte of the length zero.
+// A dock therefore tells rpc streams and lane streams apart by their first
+// byte.
+package idyl.delivery.v2;
+
+option go_package = "github.com/idyl-labs/hyperplane-go/wire/deliveryv2";
+
+// EventPush carries one delivered payload to the dock on a unidirectional
+// stream the edge opens. Each event has its own stream, which gives every
+// event independent flow control with no head-of-line blocking between
+// events. The edge closes the stream after this one frame.
+message EventPush {
+  bytes payload = 1;
+}
+
+// RpcOpen is the first frame on a bidirectional stream the edge opens to the
+// dock. After it, the stream is the rpc's byte pipe in both directions.
+// metadata comes from the party that opened the rpc and is opaque to the
+// fabric.
+message RpcOpen {
+  bytes metadata = 1;
+}

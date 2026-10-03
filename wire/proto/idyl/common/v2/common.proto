@@ -1,0 +1,96 @@
+// Copyright 2026 Idyl Labs
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// This file defines the identifier types and enums shared by the Hyperplane
+// wire contracts: the edge and dock generation identifiers (EdgeTag,
+// DockGen) and the endpoint and session classification enums. The dock,
+// admission and minting contracts import them.
+//
+// Evolution is additive: decoders must ignore unknown fields, and encoders
+// must never change the meaning or type of an existing field number.
+package idyl.common.v2;
+
+option go_package = "github.com/idyl-labs/hyperplane-go/wire/commonv2";
+
+// ---------------------------------------------------------------------------
+// Identifiers
+// ---------------------------------------------------------------------------
+
+// EdgeTag identifies one edge process incarnation serving under one lease.
+// When that incarnation ends, every dock it served ends with it.
+message EdgeTag {
+  bytes incarnation = 1; // 16 bytes, random, chosen at process start
+  bytes lease_id = 2; // at most 16 bytes, opaque, issued with the edge's lease
+}
+
+// DockGen identifies one dock generation. State recorded for one generation
+// never applies to another.
+//
+// The nonce is the succession credential: a client that names its previous
+// generation, nonce included, makes its next dock a succession. The edge
+// discloses it only inside the dock's own TLS connection. It must never
+// appear in logs, errors, metrics or any other output; render a generation
+// as edge_tag#slot.epoch.
+message DockGen {
+  EdgeTag edge = 1;
+  uint32 slot = 2;
+  uint32 slot_epoch = 3;
+  bytes nonce = 4; // 12 bytes
+}
+
+// ---------------------------------------------------------------------------
+// Endpoint and session classification
+// ---------------------------------------------------------------------------
+
+// EndpointKind is the kind of principal at a dock, derived from the path
+// shape of its SPIFFE ID.
+//
+// Kinds are additive. A consumer must refuse a dock whose endpoint kind it
+// does not know, because the rules that apply to an endpoint cannot be
+// guessed from an unknown kind.
+enum EndpointKind {
+  ENDPOINT_KIND_UNSPECIFIED = 0;
+  // A Node: one machine running the node daemon.
+  ENDPOINT_KIND_NODE = 1;
+  // A Pod: one workload instance placed on a Node.
+  ENDPOINT_KIND_POD = 2;
+  // One leg of an interactive workload session; see SessionKind and
+  // SessionLeg.
+  ENDPOINT_KIND_SESSION = 3;
+  // A component of the fabric itself.
+  ENDPOINT_KIND_FABRIC = 4;
+  // A share: a tunnel dock that serves as a data-plane lane target, follows
+  // session rules, and is bound to no Node.
+  ENDPOINT_KIND_SHARE = 5;
+}
+
+// SessionKind classifies a session principal. It applies only to the session
+// endpoint kind. New kinds are additive enum values.
+enum SessionKind {
+  SESSION_KIND_UNSPECIFIED = 0;
+  SESSION_KIND_EXEC = 1;
+  SESSION_KIND_LOGS = 2;
+  SESSION_KIND_SHELL = 3;
+}
+
+// SessionLeg distinguishes the two endpoint certificates that take part in
+// one workload session splice. A workload session is identified by the pair
+// (session_id, session_leg), not by session_id alone.
+enum SessionLeg {
+  SESSION_LEG_UNSPECIFIED = 0;
+  SESSION_LEG_CLIENT = 1;
+  SESSION_LEG_PROXY = 2;
+}

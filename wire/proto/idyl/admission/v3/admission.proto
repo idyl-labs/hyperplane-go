@@ -1,0 +1,136 @@
+// Copyright 2026 Idyl Labs
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// This file defines zone-admission-lease/3, the contract under which
+// dynamically admitted principals (Nodes, Pods, sessions and shares) dock.
+// Such a principal presents one exact ZoneAdmissionLease together with a
+// DockProofInput that binds the lease to its TLS connection (see the dock/3
+// DockHello). The edge derives everything it knows about the principal from
+// the authenticated SVID and the signed lease; admission needs no online
+// lookup.
+//
+// Every Pod and session lease binds the workload identity to one account
+// and one stable Namespace ID.
+//
+// Leases are signed by X.509-SVID admission signers. The lease signature is
+// ECDSA P-256/SHA-256 in strict low-S DER, and the signer chain is a
+// leaf-first X.509-SVID chain validated against the verifier's current local
+// trust bundle. Each signature covers a domain-separated input: a fixed
+// domain string, then the 4-byte big-endian length of the signed bytes, then
+// the signed bytes. The lease domain is
+// "idyl-zone-admission-lease-signature/v3\x00" and the dock proof domain is
+// "idyl-dock-proof-signature/v1\x00".
+package idyl.admission.v3;
+
+import "idyl/common/v2/common.proto";
+import "idyl/common/v2/plane.proto";
+
+option go_package = "github.com/idyl-labs/hyperplane-go/wire/admissionv3";
+
+// NodeAdmission records the authority under which a Node was admitted. The
+// only defined authority is provider capacity. The value is a signed
+// issuance fact, never an assertion by the requester.
+enum NodeAdmission {
+  NODE_ADMISSION_UNSPECIFIED = 0;
+  NODE_ADMISSION_PROVIDER = 1;
+}
+
+// ZoneAdmissionLease is the signed envelope, transmitted byte for byte. The
+// signature covers payload exactly as received, never a decoded and
+// re-encoded form. signer_key_id is SHA-256 over the signer leaf's SPKI. The
+// signer chain is leaf first and omits the verifier's trust anchors.
+message ZoneAdmissionLease {
+  string contract = 1; // "zone-admission-lease/3"
+  bytes payload = 2; // canonical ZoneAdmissionLeasePayload bytes
+  bytes signature = 3; // ECDSA P-256/SHA-256, strict low-S DER, bounded size
+  bytes signer_key_id = 4; // SHA-256, 32 bytes
+  repeated bytes signer_cert_chain = 5; // DER, X.509-SVID signer leaf first
+}
+
+// ZoneAdmissionLeasePayload is the canonical authorization payload. Presence
+// is strict by endpoint kind; fields not admitted by that kind must be absent.
+// All identity and placement facts are issuer-derived.
+message ZoneAdmissionLeasePayload {
+  uint32 version = 1; // exactly 3; any other version is refused
+  bytes lease_id = 2; // 16 opaque issuer bytes; audit only
+  string zone = 3;
+  idyl.common.v2.Plane fabric_plane = 4;
+  // Exact authenticated connection SVID URI. Node, pod, session and share
+  // principals all use the zone SPIFFE trust domain.
+  string principal = 5;
+  bytes subject_spki_sha256 = 6;
+  idyl.common.v2.EndpointKind endpoint_kind = 7;
+
+  string subnet_id = 8;
+  string owner_scope = 9;
+  string account_id = 10;
+  // Pod and session leases: the stable Namespace UUID. It must equal the
+  // namespace segment of the authenticated principal. Node and share leases
+  // leave it empty.
+  string namespace_id = 11;
+  // Field 29 and the name workload_scope are reserved. They must never be
+  // reused.
+  reserved 29;
+  reserved "workload_scope";
+  string workload_id = 12;
+  string node_id = 13;
+  string pod_id = 14;
+  // Pod leases use {pod_id}:{assignment_generation}; session leases use
+  // {pod_id}.{assignment_generation} to match the canonical session URI.
+  string pod_instance_id = 15;
+  uint64 assignment_generation = 16;
+
+  string session_id = 17;
+  idyl.common.v2.SessionKind session_kind = 18;
+  idyl.common.v2.SessionLeg session_leg = 19;
+  string grant_id = 20; // proxy leg only; client leg has no proxy grant
+
+  // Adapter classes the endpoint may serve, as a bitset: 0 control dock,
+  // 1 rpc, 2 stream, 3 flow, 4 ingress target, 5 splice, 6 federation. It
+  // must be non-zero and use only those bits.
+  uint64 adapter_classes = 21;
+  // The largest set of lane classes a lane to this endpoint may be granted.
+  // It uses the lane-class bits (2 stream, 3 flow, 4 ingress target, 5
+  // splice leg) and must be a subset of adapter_classes.
+  uint64 lane_class_ceiling = 22;
+  string policy_profile = 23; // bounded generic profile, never a resource id
+  uint32 policy_profile_version = 24;
+
+  uint64 not_before_unix_s = 25;
+  uint64 not_after_unix_s = 26;
+  NodeAdmission node_admission = 27; // node kind only
+  uint64 issued_at_unix_s = 28; // not_before + the fixed 60-second backdate
+
+  // Share leases only: must equal the share segment of the authenticated
+  // principal.
+  string share_id = 30;
+}
+
+// DockProofInput is the exact canonical byte sequence the endpoint signs
+// with its SVID key. The proof signature domain is applied outside this
+// message. The input repeats every fact of the dock opening except the proof
+// itself, so a verifier compares raw canonical bytes and never reconstructs
+// signed bytes. exporter_value binds the proof to one TLS connection: a proof
+// replayed on any other connection fails.
+message DockProofInput {
+  uint32 version = 1; // exactly 1
+  string dock_contract = 2; // "dock/3"
+  string exporter_label = 3; // "EXPORTER-IDYL-DOCK-PROOF-v1"
+  bytes exporter_value = 4; // 32 bytes from this TLS connection
+  bytes lease_envelope_sha256 = 5; // digest of exact envelope bytes
+  uint32 keepalive_ms = 6;
+  idyl.common.v2.DockGen predecessor_gen = 7;
+}

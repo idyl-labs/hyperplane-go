@@ -1,0 +1,99 @@
+// Copyright 2026 Idyl Labs
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// This file defines the requests and replies for minting a Pod or session
+// credential. A successful mint is atomic: it always returns the X.509-SVID
+// chain together with its exact admission lease envelope and the trust
+// snapshot the leaf verifies under, so a certificate without its lease
+// cannot be represented. A Pod generation also carries the renewal instant
+// the issuer selected.
+package idyl.minting.v2;
+
+import "idyl/common/v2/common.proto";
+import "idyl/trust/v1/trust.proto";
+
+option go_package = "github.com/idyl-labs/hyperplane-go/wire/mintingv2";
+
+// MintPodSvidRequest asks for a credential generation for one Pod
+// assignment. It names only the Pod and its assignment generation; every
+// identity and placement fact in the resulting lease is issuer-derived.
+message MintPodSvidRequest {
+  bytes csr_der = 1;
+  string pod_id = 2;
+  int64 assignment_generation = 3;
+}
+
+// MintSessionSvidRequest asks for a credential for one leg of a workload
+// session.
+message MintSessionSvidRequest {
+  // The Node, workload, account and Namespace facts are deliberately absent:
+  // the issuer derives them from the Pod's current placement and signs them
+  // into the resulting lease rather than accepting assertions from the
+  // requester.
+  bytes csr_der = 1;
+  string session_id = 2;
+  idyl.common.v2.SessionKind session_kind = 3;
+  idyl.common.v2.SessionLeg session_leg = 4;
+  string pod_id = 5;
+  int64 assignment_generation = 6;
+  string grant_id = 7; // required only for proxy leg
+  uint64 expires_at_unix_s = 8;
+}
+
+// PodCredentialGeneration is a successful Pod mint.
+message PodCredentialGeneration {
+  repeated bytes cert_der = 1; // DER, leaf first
+  bytes lease_envelope = 2; // exact canonical ZoneAdmissionLease bytes
+  uint64 renew_at_unix_s = 3; // issuer-selected, inside the signed interval
+  // The exact trust snapshot, with purpose POD, paired with this leaf
+  // generation. A consumer validates and atomically installs it before
+  // adopting the leaf.
+  idyl.trust.v1.TrustSnapshot trust_snapshot = 4;
+}
+
+// SessionCredentialGeneration is a successful session mint.
+message SessionCredentialGeneration {
+  repeated bytes cert_der = 1; // DER, leaf first
+  bytes lease_envelope = 2; // exact canonical ZoneAdmissionLease bytes
+  // Sessions never renew; there is deliberately no renewal field.
+  // The exact trust snapshot, with purpose POD, paired with this session
+  // leaf. The client and proxy legs each validate and atomically install it
+  // before adopting the generation.
+  idyl.trust.v1.TrustSnapshot trust_snapshot = 3;
+}
+
+// Refusal is a mint the issuer declined. code is a short machine-readable
+// reason made of lowercase letters and hyphens.
+message Refusal {
+  string code = 1;
+}
+
+// MintPodSvidReply carries exactly one verdict for a MintPodSvidRequest.
+message MintPodSvidReply {
+  oneof verdict {
+    PodCredentialGeneration generation = 1;
+    Refusal refusal = 2;
+  }
+}
+
+// MintSessionSvidReply carries exactly one verdict for a
+// MintSessionSvidRequest.
+message MintSessionSvidReply {
+  oneof verdict {
+    SessionCredentialGeneration generation = 1;
+    Refusal refusal = 2;
+  }
+}

@@ -1,0 +1,106 @@
+// Copyright 2026 Idyl Labs
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// This file defines dock/3, the dock control channel for dynamically
+// admitted principals (Nodes, Pods, sessions and shares). dock/3 is dock/2
+// with demand-admission material in DockHello: the exact admission lease
+// envelope, the exact canonical dock proof input bound to this TLS
+// connection, and an Ed25519 signature over that input made with the SVID
+// key. The material is mandatory in a dock/3 DockHello. Every other control
+// frame, field number and meaning is identical to idyl.dock.v2; see that
+// package for the semantics of each frame.
+package idyl.dock.v3;
+
+import "idyl/common/v2/common.proto";
+
+option go_package = "github.com/idyl-labs/hyperplane-go/wire/dockv3";
+
+// DockHello is the client's opening frame on the control stream. Fields 1 to
+// 3 mean what they mean in dock/2. The proof input repeats the contract,
+// keepalive_ms, predecessor_gen and a SHA-256 digest of lease_envelope, and
+// a verifier refuses a hello whose fields differ from the proof input.
+message DockHello {
+  string contract = 1; // "dock/3"
+  uint32 keepalive_ms = 2;
+  idyl.common.v2.DockGen predecessor_gen = 3;
+  bytes lease_envelope = 4; // exact canonical ZoneAdmissionLease bytes
+  bytes dock_proof_input = 5; // exact canonical DockProofInput bytes
+  bytes dock_proof_signature = 6; // Ed25519 SVID-key signature over the domain-separated proof input
+}
+
+// DockWelcome is the edge's reply, as in dock/2.
+message DockWelcome {
+  idyl.common.v2.DockGen gen = 1;
+  uint32 keepalive_ms = 2;
+}
+
+// DockDrain is the edge's drain signal, as in dock/2.
+message DockDrain {
+  string reason = 1;
+  uint64 deadline_unix = 2;
+}
+
+// DockOverloaded is the edge's overload refusal, as in dock/2.
+message DockOverloaded {
+  uint32 retry_after_ms = 1;
+}
+
+// LaneCloseCause classifies why a lane ended. Its values and meanings are
+// those of idyl.dock.v2.LaneCloseCause.
+enum LaneCloseCause {
+  LANE_CLOSE_CAUSE_UNSPECIFIED = 0;
+  LANE_CLOSE_CAUSE_LEG_UNDOCK = 1;
+  LANE_CLOSE_CAUSE_EDGE_FAILURE = 2;
+  LANE_CLOSE_CAUSE_EPOCH_RETIRED = 3;
+  LANE_CLOSE_CAUSE_GEN_MISMATCH = 4;
+  LANE_CLOSE_CAUSE_POLICY_REVOKED = 5;
+  LANE_CLOSE_CAUSE_EXPIRY = 6;
+  LANE_CLOSE_CAUSE_DRAINED = 7;
+}
+
+// LaneAttached tells a dock that a lane was installed on its connection, as
+// in dock/2. lane_class uses the same bits: 2 stream, 3 flow, 4 ingress
+// target, 5 splice leg.
+message LaneAttached {
+  uint64 lane_id = 1;
+  string peer_principal = 2; // advisory only
+  uint64 lane_class = 3;
+  bytes metadata = 4;
+}
+
+// LaneClosed tells a dock that a lane ended, as in dock/2.
+message LaneClosed {
+  uint64 lane_id = 1;
+  LaneCloseCause cause = 2;
+}
+
+// ClientToEdge frames the client-to-edge direction of the control stream.
+message ClientToEdge {
+  oneof msg {
+    DockHello hello = 1;
+  }
+}
+
+// EdgeToClient frames the edge-to-client direction of the control stream.
+message EdgeToClient {
+  oneof msg {
+    DockWelcome welcome = 1;
+    DockDrain drain = 2;
+    DockOverloaded overloaded = 3;
+    LaneAttached lane_attached = 4;
+    LaneClosed lane_closed = 5;
+  }
+}

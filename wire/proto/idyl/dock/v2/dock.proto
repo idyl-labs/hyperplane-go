@@ -1,0 +1,150 @@
+// Copyright 2026 Idyl Labs
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// This file defines dock/2, the dock control channel: the first
+// bidirectional stream a client opens after its QUIC handshake with an edge.
+// It carries keepalive negotiation, the edge's disclosure of the dock
+// generation, drain and overload signals, and lane attach and close
+// notifications. Every message is written as one frame: a 4-byte big-endian
+// length followed by the marshaled message.
+//
+// The control channel evolves additively: decoders ignore unknown fields,
+// and it is versioned independently of the other wire contracts.
+//
+// The generation disclosure is what makes succession possible. The client
+// can later name its previous generation, and a remote party holding a
+// stolen credential cannot, because the nonce only ever travels inside the
+// previous dock's TLS connection.
+package idyl.dock.v2;
+
+import "idyl/common/v2/common.proto";
+
+option go_package = "github.com/idyl-labs/hyperplane-go/wire/dockv2";
+
+// DockHello is the client's opening frame on the control stream.
+message DockHello {
+  string contract = 1; // "dock/2"
+  // Requested keepalive cadence in milliseconds. The edge grants a value
+  // under the Subnet's policy (short enough to hold residential NAT bindings
+  // open, longer in cloud networks); 0 asks for the Subnet default.
+  uint32 keepalive_ms = 2;
+  // The client's previous generation, as disclosed by its previous edge.
+  // Naming it makes this dock a succession of that generation. Absent for a
+  // first dock and for a client that kept no record of its previous dock.
+  idyl.common.v2.DockGen predecessor_gen = 3;
+}
+
+// DockWelcome is the edge's reply: the dock is admitted and its generation
+// disclosed.
+message DockWelcome {
+  // The full dock generation, nonce included. The nonce is the succession
+  // credential: it travels only here, inside this dock's TLS connection,
+  // and must be redacted from every rendering of the generation.
+  idyl.common.v2.DockGen gen = 1;
+  // Granted cadence in milliseconds. The client must produce transport
+  // activity at least this often, or the edge's idle timeout treats the
+  // connection as dead.
+  uint32 keepalive_ms = 2;
+}
+
+// DockDrain is the edge's drain signal: finish existing work, open nothing
+// new, and redock elsewhere before the deadline. An edge drains its docks
+// when it shuts down or rotates.
+message DockDrain {
+  string reason = 1;
+  uint64 deadline_unix = 2; // advisory
+}
+
+// DockOverloaded is the edge's typed admission refusal when it is over its
+// connection rate or capacity budget. The edge closes the connection right
+// after this frame with the overloaded error code. retry_after_ms is an
+// advisory hint: the client redocks elsewhere, or retries here after the
+// hint plus its own random jitter, backing off exponentially across
+// attempts.
+message DockOverloaded {
+  uint32 retry_after_ms = 1;
+}
+
+// LaneCloseCause classifies why a lane ended. Values 1 to 6 mean the lane
+// was torn: its streams are reset. DRAINED means the lane ended gracefully.
+enum LaneCloseCause {
+  LANE_CLOSE_CAUSE_UNSPECIFIED = 0;
+  // One of the lane's docks undocked.
+  LANE_CLOSE_CAUSE_LEG_UNDOCK = 1;
+  // The part of the fabric serving one of the lane's docks failed.
+  LANE_CLOSE_CAUSE_EDGE_FAILURE = 2;
+  // The epoch under which the lane was authorized was retired.
+  LANE_CLOSE_CAUSE_EPOCH_RETIRED = 3;
+  // A dock's current generation differs from the generation the lane was
+  // established with.
+  LANE_CLOSE_CAUSE_GEN_MISMATCH = 4;
+  // The policy that authorized the lane was revoked.
+  LANE_CLOSE_CAUSE_POLICY_REVOKED = 5;
+  // The lane's authorization expired.
+  LANE_CLOSE_CAUSE_EXPIRY = 6;
+  // Succession drained the lane: its existing streams ran to completion
+  // and no new streams were accepted.
+  LANE_CLOSE_CAUSE_DRAINED = 7;
+}
+
+// LaneAttached tells a dock, on the control stream, that a lane was
+// installed on its connection: the lane passed the fabric's authorization,
+// and from then on QUIC streams attributed to lane_id may arrive. Both docks
+// of a two-dock lane receive it.
+//
+// peer_principal is advisory, for display and local policy only. It must
+// never be used to admit a peer: the target verifies its peer only through
+// an end-to-end mutual TLS handshake inside the lane.
+message LaneAttached {
+  uint64 lane_id = 1; // connection-scoped; resolves only as (connection, lane_id)
+  string peer_principal = 2; // advisory only; never used for admission
+  // Lane classes granted at establishment, as a bitset. The bits share the
+  // adapter-class bit space and are never reassigned:
+  //   bit 2, stream: native QUIC bidirectional streams may attach.
+  //   bit 3, flow: datagram flows may attach.
+  //   bit 4, ingress target: the lane may carry ingress listener traffic
+  //     to this dock.
+  //   bit 5, splice leg: this dock may be one leg of a two-dock lane.
+  // The edge grants exactly the requested set or refuses the lane; it never
+  // grants a narrower set.
+  uint64 lane_class = 3;
+  bytes metadata = 4; // supplied when the lane was opened; opaque to the fabric
+}
+
+// LaneClosed tells a dock, on the control stream, that a lane ended. A lane
+// that has ended never resumes; a new lane must be established instead.
+message LaneClosed {
+  uint64 lane_id = 1;
+  LaneCloseCause cause = 2;
+}
+
+// ClientToEdge frames the client-to-edge direction of the control stream.
+message ClientToEdge {
+  oneof msg {
+    DockHello hello = 1;
+  }
+}
+
+// EdgeToClient frames the edge-to-client direction of the control stream.
+message EdgeToClient {
+  oneof msg {
+    DockWelcome welcome = 1;
+    DockDrain drain = 2;
+    DockOverloaded overloaded = 3;
+    LaneAttached lane_attached = 4;
+    LaneClosed lane_closed = 5;
+  }
+}

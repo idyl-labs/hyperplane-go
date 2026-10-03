@@ -1,0 +1,87 @@
+// Copyright 2026 Idyl Labs
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+//     http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+// This file defines the trust snapshot: a bounded, purpose-scoped set of
+// public CA certificates (generations) that a consumer installs as its trust
+// anchors for one zone. No private key material has a field here.
+//
+// The structured fields are the bounded cross-language view. The
+// canonical_payload_json field carries the exact canonical JSON payload over
+// which the SHA-256 digest is computed, so every implementation names one
+// digest. Validators require the structured fields and the canonical JSON to
+// agree byte for byte after canonicalization; there is no second digest over
+// the protobuf encoding.
+package idyl.trust.v1;
+
+option go_package = "github.com/idyl-labs/hyperplane-go/wire/trustv1";
+
+// Purpose names the trust domain a snapshot serves. A snapshot for one
+// purpose never stands in for another. POD covers Pod and session SVIDs;
+// JOIN covers the credentials used when a Node joins.
+enum Purpose {
+  PURPOSE_UNSPECIFIED = 0;
+  PURPOSE_JOIN = 1;
+  PURPOSE_POD = 2;
+}
+
+// GenerationState is the lifecycle state of one CA generation. A snapshot
+// distributes only PUBLISHING, ACTIVE and RETIRING generations; RETIRED and
+// REVOKED generations are never included, and a snapshot that contains one
+// is malformed.
+enum GenerationState {
+  GENERATION_STATE_UNSPECIFIED = 0;
+  // Published so consumers trust it before any certificate is issued under
+  // it.
+  GENERATION_STATE_PUBLISHING = 1;
+  // Issuing certificates.
+  GENERATION_STATE_ACTIVE = 2;
+  // Not issuing; still trusted while certificates issued under it remain
+  // valid.
+  GENERATION_STATE_RETIRING = 3;
+  GENERATION_STATE_RETIRED = 4;
+  GENERATION_STATE_REVOKED = 5;
+}
+
+// TrustGeneration is one CA certificate in a snapshot. The certificate is an
+// Ed25519 signing CA; the advertised validity must equal the certificate's
+// own, and sha256_fingerprint is SHA-256 over certificate_der.
+message TrustGeneration {
+  string generation_id = 1;
+  bytes certificate_der = 2;
+  bytes sha256_fingerprint = 3;
+  int64 not_before_unix_s = 4;
+  int64 not_after_unix_s = 5;
+  uint64 published_sequence = 6; // snapshot sequence that first published it
+  GenerationState state = 7;
+}
+
+// TrustSnapshot is the complete trust set for one zone and purpose. sequence
+// increases monotonically: a consumer refuses a lower sequence as a rollback,
+// treats the same sequence with the same digest as an idempotent
+// redelivery, and refuses the same sequence with a different digest as
+// equivocation. A snapshot is valid from issued_at to valid_until (at most
+// 24 hours) and never outlives any generation it contains. Generations are
+// sorted by generation_id.
+message TrustSnapshot {
+  string zone = 1;
+  Purpose purpose = 2;
+  uint64 sequence = 3;
+  int64 issued_at_unix_s = 4;
+  int64 valid_until_unix_s = 5;
+  repeated TrustGeneration generations = 6;
+  bytes canonical_payload_json = 7;
+  bytes sha256_digest = 8;
+}
