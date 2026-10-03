@@ -128,6 +128,6 @@ const (
 // URI from the zone trust domain and the plane, never from lease content,
 // and compare it byte for byte.
 const (
-	ControlPlaneAdmissionSignerPath = "/service/admission-signer/control"
-	DataPlaneAdmissionSignerPath    = "/service/admission-signer/data"
+	ControlPlaneAdmissionSignerPath = "/service/join/admission-issuer"
+	DataPlaneAdmissionSignerPath    = "/service/controller/admission-issuer"
 )

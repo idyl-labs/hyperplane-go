@@ -615,7 +615,7 @@ func hostileSignerDrafts(authority *svidtest.Authority, honest *svidtest.SignerI
 			[]svidtest.SignerOption{svidtest.WithValidity(time.Unix(1_699_999_000, 0),
 				time.Unix(1_699_999_000, 0).Add(apb.MaxAdmissionSignerLifetime+time.Second))}},
 		{"foreign-domain-uri", "signer URI names another zone trust domain",
-			[]svidtest.SignerOption{validity, svidtest.WithURI("spiffe://z2.zone.example.com/service/admission-signer/data")}},
+			[]svidtest.SignerOption{validity, svidtest.WithURI("spiffe://z2.zone.example.com/service/controller/admission-issuer")}},
 	}
 
 	placeholder, err := wire.EncodeLeaseSignature(big.NewInt(7), big.NewInt(7))
