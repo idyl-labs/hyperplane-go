@@ -44,7 +44,7 @@ session resumption, the transports, and lanes.
 
 | Package | Contents |
 | --- | --- |
-| [`dock`](dock) | The client: open a dock, accept lanes, lane streams, events and RPCs. |
+| [`dock`](dock) | The client: open a dock, accept lanes, lane streams and flows, events and RPCs. |
 | [`wire`](wire) | Framing, canonical encoding, admission lease and dock proof verification, and the lane stream header. |
 | [`wire/fallback`](wire/fallback) | `fallback/1`, the TCP and TLS transport used where UDP is blocked. |
 | [`wire/svidtest`](wire/svidtest) | Test certificate authorities and admission signers. |

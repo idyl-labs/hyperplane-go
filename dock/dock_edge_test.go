@@ -779,3 +779,118 @@ func TestAbandonEndsDockAbruptlyAndIsIdempotent(t *testing.T) {
 		})
 	}
 }
+
+// Flows round-trip over real QUIC: the edge reads the dock's datagram
+// with its attribution prefix, and a datagram the edge sends with the
+// dock's lane id arrives on that lane with its flow id and payload.
+func TestFlowsOverQUIC(t *testing.T) {
+	edge := newScriptedEdge(t, newTestPKI(t), wire.TransportQUIC, welcome(20_000))
+	d, s := edge.open(edge.config())
+	ctx := laneCtx(t)
+
+	s.sendControl(t, &dockpb.EdgeToClient{Msg: &dockpb.EdgeToClient_LaneAttached{LaneAttached: &dockpb.LaneAttached{
+		LaneId: 21, LaneClass: wire.LaneClassStream | wire.LaneClassFlow,
+	}}})
+	lane, err := d.AcceptLane(ctx)
+	if err != nil {
+		t.Fatalf("AcceptLane: %v", err)
+	}
+
+	if err := lane.SendFlow(300, []byte("ping")); err != nil {
+		t.Fatalf("SendFlow: %v", err)
+	}
+	dg, err := s.quic.ReceiveDatagram(ctx)
+	if err != nil {
+		t.Fatalf("edge ReceiveDatagram: %v", err)
+	}
+	if want := []byte{21, 0xAC, 0x02, 'p', 'i', 'n', 'g'}; !bytes.Equal(dg, want) {
+		t.Fatalf("edge received %x, want %x", dg, want)
+	}
+
+	if err := s.quic.SendDatagram([]byte{21, 0x07, 'p', 'o', 'n', 'g'}); err != nil {
+		t.Fatalf("edge SendDatagram: %v", err)
+	}
+	flowID, payload, err := lane.ReceiveFlow(ctx)
+	if err != nil || flowID != 7 || string(payload) != "pong" {
+		t.Fatalf("ReceiveFlow = (%d, %q, %v), want (7, \"pong\")", flowID, payload, err)
+	}
+}
+
+// The fallback has no datagram plane, so a flow lane on a fallback dock
+// refuses SendFlow locally rather than claiming a send.
+func TestFlowsRefusedOverFallback(t *testing.T) {
+	edge := newScriptedEdge(t, newTestPKI(t), wire.TransportTCPFallback, welcome(20_000))
+	d, s := edge.open(edge.config())
+	s.sendControl(t, &dockpb.EdgeToClient{Msg: &dockpb.EdgeToClient_LaneAttached{LaneAttached: &dockpb.LaneAttached{
+		LaneId: 22, LaneClass: wire.LaneClassFlow,
+	}}})
+	lane, err := d.AcceptLane(laneCtx(t))
+	if err != nil {
+		t.Fatalf("AcceptLane: %v", err)
+	}
+	if err := lane.SendFlow(1, []byte("x")); !errors.Is(err, ErrFlowClassNotGranted) {
+		t.Fatalf("SendFlow over the fallback = %v, want ErrFlowClassNotGranted", err)
+	}
+}
+
+// OpenStream carries a caller-defined exchange over both transports: the
+// edge reads exactly the caller's bytes, the reply reaches the caller,
+// and FIN in both directions finishes the stream without a reset. A
+// stream wrapped by NewRPC and aborted reaches the edge as a
+// DockCodeProtocol reset.
+func TestOpenStreamOverBothTransports(t *testing.T) {
+	for _, transport := range edgeTransports {
+		t.Run(transport, func(t *testing.T) {
+			edge := newScriptedEdge(t, newTestPKI(t), transport, welcome(20_000))
+			d, s := edge.open(edge.config())
+			ctx := laneCtx(t)
+
+			out, err := d.OpenStream(ctx)
+			if err != nil {
+				t.Fatalf("OpenStream: %v", err)
+			}
+			if _, err := out.Write([]byte{0x7f, 'r', 'e', 'q'}); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			if err := out.Close(); err != nil {
+				t.Fatalf("Close: %v", err)
+			}
+			in, err := s.acceptStream(ctx)
+			if err != nil {
+				t.Fatalf("edge accept: %v", err)
+			}
+			if got, err := io.ReadAll(in); err != nil || string(got) != "\x7freq" {
+				t.Fatalf("edge read = %q, %v; want the caller's bytes then FIN", got, err)
+			}
+			if _, err := in.Write([]byte("resp")); err != nil {
+				t.Fatalf("edge write: %v", err)
+			}
+			_ = in.Close()
+			if got, err := io.ReadAll(out); err != nil || string(got) != "resp" {
+				t.Fatalf("stream read = %q, %v; want the reply then FIN", got, err)
+			}
+
+			rs, err := d.OpenStream(ctx)
+			if err != nil {
+				t.Fatalf("second OpenStream: %v", err)
+			}
+			if _, err := rs.Write([]byte{0x7f}); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			acc, err := s.acceptStream(ctx)
+			if err != nil {
+				t.Fatalf("edge accept: %v", err)
+			}
+			NewRPC(rs).Abort()
+			if code, err := readUntilReset(acc); err != nil || code != wire.DockCodeProtocol {
+				t.Fatalf("aborted RPC reached the edge as %#x, %v; want a DockCodeProtocol reset", code, err)
+			}
+
+			s.closeConn(wire.DockCodeDrain, "edge restart")
+			<-d.Context().Done()
+			if _, err := d.OpenStream(ctx); err == nil {
+				t.Fatal("OpenStream succeeded on an ended dock")
+			}
+		})
+	}
+}

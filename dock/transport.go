@@ -40,15 +40,9 @@ import (
 // network and never triggers the fallback.
 
 // transportStream is the bidirectional stream surface the dock protocol
-// uses on either transport.
-type transportStream interface {
-	io.Reader
-	io.Writer
-	Close() error
-	CancelRead(code uint64)
-	CancelWrite(code uint64)
-	SetReadDeadline(t time.Time) error
-}
+// uses on either transport. It is the exported Stream under the name the
+// transport adapters use.
+type transportStream = Stream
 
 // transportReceiveStream is the receive side of an edge-opened
 // unidirectional stream (an event push). It carries cancel and deadline
@@ -59,6 +53,20 @@ type transportReceiveStream interface {
 	io.Reader
 	CancelRead(code uint64)
 	SetReadDeadline(t time.Time) error
+}
+
+// transportDatagramConn is the datagram plane a transport may provide:
+// connection-level datagrams, which carry lane flows and the keepalive.
+// QUIC provides it. The fallback does not, because it has no datagram
+// frame type; keeping the plane a separate interface, rather than two
+// more transportConn methods, lets the type system keep the fallback
+// datagram-free instead of relying on a runtime error.
+type transportDatagramConn interface {
+	// SendDatagram sends one datagram, best-effort: the transport may
+	// refuse an oversized payload and never confirms delivery.
+	SendDatagram(b []byte) error
+	// ReceiveDatagram blocks for the next received datagram.
+	ReceiveDatagram(ctx context.Context) ([]byte, error)
 }
 
 // transportConn is one dock-side connection on either transport.
@@ -117,6 +125,14 @@ func (q quicTransportConn) SendKeepalive() error {
 	// The keepalive datagram is the single byte 0x00. The wire package
 	// defines it so that client and codec agree on the form.
 	return q.conn.SendDatagram(wire.LaneKeepalive())
+}
+
+func (q quicTransportConn) SendDatagram(b []byte) error {
+	return q.conn.SendDatagram(b)
+}
+
+func (q quicTransportConn) ReceiveDatagram(ctx context.Context) ([]byte, error) {
+	return q.conn.ReceiveDatagram(ctx)
 }
 
 func (q quicTransportConn) CloseWithError(code uint64, reason string) error {

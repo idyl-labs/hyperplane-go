@@ -45,11 +45,17 @@ func drainReceive(s transportReceiveStream) {
 	}
 }
 
-// RPC is one inbound RPC: an open bidirectional byte pipe between the
-// RPC's opener and this dock.
+// RPC is one RPC: an open bidirectional byte pipe between the RPC's two
+// ends. AcceptRPC returns inbound RPCs; NewRPC makes one from a stream.
 type RPC struct {
 	stream transportStream
 }
+
+// NewRPC returns an RPC over s, which must not be nil. It serves a
+// stream protocol that establishes an RPC on a stream from
+// Dock.OpenStream: once the protocol hands over the stream, the RPC
+// behaves exactly as one from AcceptRPC. The RPC takes ownership of s.
+func NewRPC(s Stream) *RPC { return &RPC{stream: s} }
 
 func (r *RPC) Read(p []byte) (int, error)  { return r.stream.Read(p) }
 func (r *RPC) Write(p []byte) (int, error) { return r.stream.Write(p) }
