@@ -12,7 +12,7 @@ Report vulnerabilities privately through
 [GitHub Security Advisories](https://github.com/idyl-labs/hyperplane-go/security/advisories/new).
 Do not open a public issue.
 
-If you cannot use GitHub Security Advisories, email **security@idyl.network**
+If you cannot use GitHub Security Advisories, email **security@idyl.dev**
 with the subject prefix `[SECURITY]`.
 
 You can expect:

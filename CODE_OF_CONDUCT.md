@@ -14,7 +14,7 @@ community.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the maintainers at **conduct@idyl.network**. All complaints will
+reported to the maintainers at **conduct@idyl.dev**. All complaints will
 be reviewed and investigated promptly and fairly, and the privacy of reporters
 will be respected.
 
