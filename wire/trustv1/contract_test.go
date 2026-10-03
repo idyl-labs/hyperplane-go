@@ -638,3 +638,54 @@ func ecdsaFixtureCA(t *testing.T) fixtureCA {
 	}
 	return fixtureCA{der: der, certificate: certificate}
 }
+
+// PurposeText maps exactly the two defined purposes to their payload text
+// and refuses every other value.
+func TestPurposeText(t *testing.T) {
+	for purpose, want := range map[trustv1.Purpose]string{
+		trustv1.Purpose_PURPOSE_JOIN: "JOIN",
+		trustv1.Purpose_PURPOSE_POD:  "POD",
+	} {
+		if got, ok := trustv1.PurposeText(purpose); !ok || got != want {
+			t.Errorf("PurposeText(%v) = %q, %v; want %q", purpose, got, ok, want)
+		}
+	}
+	for _, purpose := range []trustv1.Purpose{trustv1.Purpose_PURPOSE_UNSPECIFIED, trustv1.Purpose(99)} {
+		if got, ok := trustv1.PurposeText(purpose); ok {
+			t.Errorf("PurposeText(%v) = %q, accepted", purpose, got)
+		}
+	}
+}
+
+// ValidZone accepts lowercase DNS labels up to MaxZoneBytes and refuses
+// every other spelling.
+func TestValidZone(t *testing.T) {
+	for _, zone := range []string{"z", "z1", "zone-a", strings.Repeat("a", trustv1.MaxZoneBytes)} {
+		if !trustv1.ValidZone(zone) {
+			t.Errorf("ValidZone(%q) = false", zone)
+		}
+	}
+	for _, zone := range []string{
+		"", "Z1", "-z", "z-", "z.a", "z_a", " z", strings.Repeat("a", trustv1.MaxZoneBytes+1),
+	} {
+		if trustv1.ValidZone(zone) {
+			t.Errorf("ValidZone(%q) = true", zone)
+		}
+	}
+}
+
+// HasUnknown reports unknown fields on the message itself only.
+func TestHasUnknown(t *testing.T) {
+	snapshot := &trustv1.TrustSnapshot{Generations: []*trustv1.TrustGeneration{{}}}
+	if trustv1.HasUnknown(snapshot) {
+		t.Fatal("clean message reported unknown fields")
+	}
+	snapshot.Generations[0].ProtoReflect().SetUnknown([]byte{0xf8, 0xff, 0x01, 0x01})
+	if trustv1.HasUnknown(snapshot) {
+		t.Fatal("unknown fields on a nested message reported at the top level")
+	}
+	snapshot.ProtoReflect().SetUnknown([]byte{0xf8, 0xff, 0x01, 0x01})
+	if !trustv1.HasUnknown(snapshot) {
+		t.Fatal("unknown fields at the top level not reported")
+	}
+}

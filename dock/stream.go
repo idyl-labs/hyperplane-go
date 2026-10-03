@@ -18,6 +18,8 @@ import (
 	"context"
 	"io"
 	"time"
+
+	"github.com/idyl-labs/hyperplane-go/wire"
 )
 
 // Stream is one bidirectional stream on a dock's connection, with the
@@ -68,4 +70,18 @@ func (d *Dock) OpenStream(ctx context.Context) (Stream, error) {
 		return nil, err
 	}
 	return s, nil
+}
+
+// FinishStream ends a stream whose exchange is complete: it closes the
+// write direction (FIN) and reads the peer's remaining data to EOF, which
+// retires the stream without a reset. The read is bounded, so a peer that
+// never finishes its direction cannot hold the stream open: on timeout or
+// any read error, both directions are reset with wire.DockCodeProtocol.
+func FinishStream(s Stream) {
+	_ = s.Close() // FIN the write half
+	_ = s.SetReadDeadline(time.Now().Add(drainTimeout))
+	if _, err := io.Copy(io.Discard, s); err != nil {
+		s.CancelRead(wire.DockCodeProtocol)
+		s.CancelWrite(wire.DockCodeProtocol)
+	}
 }

@@ -155,7 +155,7 @@ func TestClientTLSRefusesIncompleteIdentity(t *testing.T) {
 		t.Run(name, func(t *testing.T) {
 			cfg := pki.clientConfig()
 			tc.mutate(&cfg)
-			conf, err := clientTLS(cfg, tc.alpn...)
+			conf, err := ClientTLS(cfg, tc.alpn...)
 			if err == nil || conf != nil || !strings.Contains(err.Error(), tc.want) {
 				t.Fatalf("clientTLS = %v, %v; want an error naming %q", conf, err, tc.want)
 			}
@@ -164,7 +164,7 @@ func TestClientTLSRefusesIncompleteIdentity(t *testing.T) {
 
 	cfg := pki.clientConfig()
 	cfg.SessionCache = tls.NewLRUClientSessionCache(1)
-	conf, err := clientTLS(cfg, "proto-a")
+	conf, err := ClientTLS(cfg, "proto-a")
 	if err != nil {
 		t.Fatalf("clientTLS on a complete config: %v", err)
 	}

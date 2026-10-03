@@ -62,7 +62,7 @@ func AdapterClassesToBits(names []string) (uint64, error) {
 			}
 		}
 		if bit < 0 {
-			n, ok := parseSynthetic(name, "adapter")
+			n, ok := ParseSynthetic(name, "adapter")
 			if !ok || n < 0 || n > 63 {
 				return 0, fmt.Errorf("wire: adapter class %q has no bit assignment", name)
 			}
@@ -89,26 +89,29 @@ func AdapterClassesFromBits(b uint64) []string {
 		if i < len(adapterNames) {
 			out = append(out, adapterNames[i])
 		} else {
-			out = append(out, synthetic("adapter", int64(i)))
+			out = append(out, Synthetic("adapter", int64(i)))
 		}
 	}
 	return out
 }
 
-// synthetic renders an unnamed wire value so it round-trips without loss:
-// decode produces it, encode parses it back to the same wire value.
-func synthetic(prefix string, n int64) string {
+// Synthetic renders a wire value that has no name as prefix(n), for
+// example adapter(9). It renders any integer; for a non-negative n the
+// rendering round-trips without loss, because ParseSynthetic turns it back
+// into the same value.
+func Synthetic(prefix string, n int64) string {
 	return fmt.Sprintf("%s(%d)", prefix, n)
 }
 
-// parseSynthetic inverts synthetic. The format is strict: anything that is
-// not exactly the synthetic rendering of some value is rejected.
-func parseSynthetic(s, prefix string) (int64, bool) {
+// ParseSynthetic inverts Synthetic: it returns n and true when s is exactly
+// Synthetic(prefix, n) for some n >= 0, and false for anything else, such
+// as a leading zero, a sign or surrounding text.
+func ParseSynthetic(s, prefix string) (int64, bool) {
 	if !strings.HasPrefix(s, prefix+"(") || !strings.HasSuffix(s, ")") {
 		return 0, false
 	}
 	n, err := strconv.ParseInt(s[len(prefix)+1:len(s)-1], 10, 64)
-	if err != nil || n < 0 || synthetic(prefix, n) != s {
+	if err != nil || n < 0 || Synthetic(prefix, n) != s {
 		return 0, false
 	}
 	return n, true

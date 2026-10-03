@@ -742,3 +742,55 @@ func FuzzGenFromProtoV2RedactGen(f *testing.F) {
 		}
 	})
 }
+
+// FuzzUnmarshalCanonical feeds arbitrary bytes as a dock proof input. The
+// contract: input that is accepted is byte-identical to the canonical
+// encoding of what it decodes to, and every refusal is classed as
+// malformed or non-canonical.
+func FuzzUnmarshalCanonical(f *testing.F) {
+	raw, err := wire.MarshalCanonical(canonicalTestProof())
+	if err != nil {
+		f.Fatal(err)
+	}
+	f.Add(raw)
+	f.Add(append(bytes.Clone(raw), raw[len(raw)-3:]...))
+	f.Add([]byte{0xf8, 0xff, 0x01, 0x01})
+	f.Add([]byte{})
+
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		var m apb.DockProofInput
+		err := wire.UnmarshalCanonical(raw, &m, apb.MaxDockProofInputBytes, "proof")
+		if err != nil {
+			if !errors.Is(err, wire.ErrAdmissionMalformed) && !errors.Is(err, wire.ErrAdmissionNonCanonical) {
+				t.Fatalf("refusal %v is neither malformed nor non-canonical", err)
+			}
+			return
+		}
+		again, err := wire.MarshalCanonical(&m)
+		if err != nil || !bytes.Equal(again, raw) {
+			t.Fatalf("accepted %x re-encodes as %x, %v", raw, again, err)
+		}
+	})
+}
+
+// FuzzParseSynthetic checks that ParseSynthetic accepts exactly the
+// renderings Synthetic produces: whatever it accepts renders back to the
+// same string, and every non-negative value it is given round-trips.
+func FuzzParseSynthetic(f *testing.F) {
+	f.Add("reason(7)", int64(7))
+	f.Add("reason(07)", int64(0))
+	f.Add("reason(-1)", int64(-1))
+	f.Add("", int64(1<<62))
+
+	f.Fuzz(func(t *testing.T, s string, n int64) {
+		if got, ok := wire.ParseSynthetic(s, "reason"); ok && wire.Synthetic("reason", got) != s {
+			t.Fatalf("ParseSynthetic(%q) = %d, which renders differently", s, got)
+		}
+		if n < 0 {
+			return
+		}
+		if got, ok := wire.ParseSynthetic(wire.Synthetic("reason", n), "reason"); !ok || got != n {
+			t.Fatalf("round trip of %d = %d, %v", n, got, ok)
+		}
+	})
+}
