@@ -36,17 +36,19 @@ import (
 // is rejected; canonical structures are always built fresh by their
 // producer.
 func MarshalCanonical(m proto.Message) ([]byte, error) {
-	if err := rejectUnknown(m.ProtoReflect()); err != nil {
+	if err := RejectUnknown(m.ProtoReflect()); err != nil {
 		return nil, err
 	}
 	return proto.MarshalOptions{Deterministic: true}.Marshal(m)
 }
 
-// rejectUnknown refuses unknown bytes at any depth: a nested message
-// retains and re-emits its unknown fields through the deterministic
-// marshal exactly as the root would, so canonicality is judged over the
-// whole message tree, never the root alone.
-func rejectUnknown(m protoreflect.Message) error {
+// RejectUnknown returns an error if m, or any message nested in it at any
+// depth, holds unknown fields. A nested message re-emits its unknown
+// fields through a deterministic marshal exactly as the root would, so a
+// canonical encoding is possible only when the whole message tree is free
+// of them. MarshalCanonical applies this check; a decoder applies it to
+// refuse input it could not re-encode byte for byte.
+func RejectUnknown(m protoreflect.Message) error {
 	if len(m.GetUnknown()) > 0 {
 		return errors.New("wire: message with unknown fields cannot be canonically encoded")
 	}
@@ -58,7 +60,7 @@ func rejectUnknown(m protoreflect.Message) error {
 			// so this check never depends on that convention.
 			if fd.MapValue().Kind() == protoreflect.MessageKind {
 				v.Map().Range(func(_ protoreflect.MapKey, mv protoreflect.Value) bool {
-					err = rejectUnknown(mv.Message())
+					err = RejectUnknown(mv.Message())
 					return err == nil
 				})
 			}
@@ -66,13 +68,13 @@ func rejectUnknown(m protoreflect.Message) error {
 			if fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind {
 				list := v.List()
 				for i := 0; i < list.Len(); i++ {
-					if err = rejectUnknown(list.Get(i).Message()); err != nil {
+					if err = RejectUnknown(list.Get(i).Message()); err != nil {
 						break
 					}
 				}
 			}
 		case fd.Kind() == protoreflect.MessageKind || fd.Kind() == protoreflect.GroupKind:
-			err = rejectUnknown(v.Message())
+			err = RejectUnknown(v.Message())
 		}
 		return err == nil
 	})

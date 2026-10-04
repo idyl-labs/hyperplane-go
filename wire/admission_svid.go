@@ -80,7 +80,7 @@ type AdmissionSignerFacts struct {
 // plane has its own signer identity, so a signer for one plane can never
 // admit an endpoint to the other.
 func AdmissionSignerURIForPlane(trustDomain string, plane mpb.Plane) (string, error) {
-	if err := validateTrustDomain(trustDomain); err != nil {
+	if err := ValidateTrustDomain(trustDomain); err != nil {
 		return "", err
 	}
 	switch plane {
@@ -115,7 +115,7 @@ func ValidateExpectedAdmissionSignerURI(expected string) (mpb.Plane, error) {
 		u.Fragment != "" || u.Port() != "" || u.RawPath != "" || u.Host == "" {
 		return mpb.Plane_PLANE_UNSPECIFIED, fmt.Errorf("wire: malformed admission signer URI")
 	}
-	if err := validateTrustDomain(u.Host); err != nil {
+	if err := ValidateTrustDomain(u.Host); err != nil {
 		return mpb.Plane_PLANE_UNSPECIFIED, err
 	}
 	switch u.Path {
@@ -312,7 +312,12 @@ func validateAdmissionSignerLeaf(leaf *x509.Certificate, expectedSignerURI strin
 	return nil
 }
 
-func validateTrustDomain(trustDomain string) error {
+// ValidateTrustDomain returns an error unless trustDomain is a SPIFFE trust
+// domain in the form admission accepts: at most 253 bytes, with no
+// surrounding white space, made of dot-separated labels of 1 to 63 bytes,
+// each of lowercase ASCII letters, digits and hyphens, neither starting
+// nor ending with a hyphen.
+func ValidateTrustDomain(trustDomain string) error {
 	if trustDomain == "" || len(trustDomain) > 253 || strings.TrimSpace(trustDomain) != trustDomain {
 		return fmt.Errorf("wire: invalid admission trust domain %q", trustDomain)
 	}
@@ -340,7 +345,7 @@ func admissionSignerUsableAt(facts *AdmissionSignerFacts, now time.Time) error {
 // the verifier's decision clock.
 func leaseTimesWithinSigner(envelope *apb.ZoneAdmissionLease, facts *AdmissionSignerFacts) error {
 	var payload apb.ZoneAdmissionLeasePayload
-	if err := unmarshalCanonical(envelope.GetPayload(), &payload, apb.MaxLeasePayloadBytes, "lease payload"); err != nil {
+	if err := UnmarshalCanonical(envelope.GetPayload(), &payload, apb.MaxLeasePayloadBytes, "lease payload"); err != nil {
 		return err
 	}
 	if payload.GetIssuedAtUnixS() < facts.NotBeforeUnixS ||

@@ -137,3 +137,26 @@ func TestAdapterClassesToBitsRefusesUnknownNames(t *testing.T) {
 		}
 	}
 }
+
+// Synthetic and ParseSynthetic round-trip every non-negative value, and
+// ParseSynthetic accepts nothing but the exact rendering.
+func TestSyntheticRoundTrip(t *testing.T) {
+	for _, n := range []int64{0, 1, 9, 63, 1 << 40, 1<<63 - 1} {
+		s := wire.Synthetic("reason", n)
+		got, ok := wire.ParseSynthetic(s, "reason")
+		if !ok || got != n {
+			t.Errorf("ParseSynthetic(%q) = %d, %v; want %d", s, got, ok, n)
+		}
+	}
+	if got := wire.Synthetic("adapter", 9); got != "adapter(9)" {
+		t.Errorf("Synthetic = %q, want adapter(9)", got)
+	}
+	for _, s := range []string{
+		"reason(-1)", "reason(+1)", "reason(01)", "reason( 1)", "reason()", "reason(1", "reason1)",
+		"other(1)", "reason(1)x", "xreason(1)", "reason(9223372036854775808)", "",
+	} {
+		if n, ok := wire.ParseSynthetic(s, "reason"); ok {
+			t.Errorf("ParseSynthetic(%q) accepted as %d", s, n)
+		}
+	}
+}

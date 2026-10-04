@@ -94,7 +94,7 @@ func (q quicTransportConn) OpenStreamSync(ctx context.Context) (transportStream,
 	if err != nil {
 		return nil, err
 	}
-	return quicTransportStream{s}, nil
+	return QUICStream{s}, nil
 }
 
 func (q quicTransportConn) AcceptStream(ctx context.Context) (transportStream, error) {
@@ -102,7 +102,7 @@ func (q quicTransportConn) AcceptStream(ctx context.Context) (transportStream, e
 	if err != nil {
 		return nil, err
 	}
-	return quicTransportStream{s}, nil
+	return QUICStream{s}, nil
 }
 
 func (q quicTransportConn) AcceptUniStream(ctx context.Context) (transportReceiveStream, error) {
@@ -148,13 +148,20 @@ func (q quicTransportConn) ExportKeyingMaterial(label string, context []byte, le
 	return state.ExportKeyingMaterial(label, context, length)
 }
 
-type quicTransportStream struct{ *quic.Stream }
+// QUICStream adapts a quic-go stream to Stream: it passes the application
+// error code of CancelRead and CancelWrite through as a QUIC stream error
+// code.
+type QUICStream struct{ *quic.Stream }
 
-func (s quicTransportStream) CancelRead(code uint64) {
+// CancelRead stops the read direction and asks the peer to stop sending,
+// with code as the QUIC stream error code.
+func (s QUICStream) CancelRead(code uint64) {
 	s.Stream.CancelRead(quic.StreamErrorCode(code))
 }
 
-func (s quicTransportStream) CancelWrite(code uint64) {
+// CancelWrite resets the write direction with code as the QUIC stream
+// error code.
+func (s QUICStream) CancelWrite(code uint64) {
 	s.Stream.CancelWrite(quic.StreamErrorCode(code))
 }
 
@@ -198,12 +205,22 @@ func (f *fallbackTransportConn) ExportKeyingMaterial(label string, context []byt
 // Dialing and selection
 // ---------------------------------------------------------------------------
 
-// quicALPNOffer is the client's QUIC ALPN offer: exactly idyl/2. It is
-// not a Config field, because the protocols a client speaks are fixed by
-// this package, not chosen by the caller.
-var quicALPNOffer = []string{"idyl/2"}
+// ALPN is the protocol a dock negotiates over QUIC.
+const ALPN = "idyl/2"
 
-func clientTLS(cfg Config, alpn ...string) (*tls.Config, error) {
+// quicALPNOffer is the client's QUIC ALPN offer: exactly ALPN. It is not a
+// Config field, because the protocols a client speaks are fixed by this
+// package, not chosen by the caller.
+var quicALPNOffer = []string{ALPN}
+
+// ClientTLS returns the TLS client configuration a dock uses, offering the
+// given ALPN protocols. It presents cfg.SVID as the client certificate,
+// accepts only the server whose SPIFFE ID is exactly cfg.ServerID as
+// verified against cfg.Bundles, requires TLS 1.3, and uses
+// cfg.SessionCache for session resumption. It returns an error if no
+// protocol is offered or cfg lacks ServerID, Bundles or the SVID's
+// certificate and key.
+func ClientTLS(cfg Config, alpn ...string) (*tls.Config, error) {
 	if len(alpn) == 0 {
 		return nil, errors.New("dock: no ALPN offered")
 	}
@@ -266,7 +283,7 @@ func quicConfig(cfg Config, keepalive time.Duration) *quic.Config {
 
 func dialQUIC(ctx context.Context, cfg Config, keepalive time.Duration) (transportConn, error) {
 	quicConf := quicConfig(cfg, keepalive)
-	tlsConf, err := clientTLS(cfg, quicALPNOffer...)
+	tlsConf, err := ClientTLS(cfg, quicALPNOffer...)
 	if err != nil {
 		return nil, err
 	}
@@ -324,7 +341,7 @@ func dialFallback(ctx context.Context, cfg Config, keepalive time.Duration) (tra
 	if err != nil {
 		return nil, fmt.Errorf("dock: fallback dial: %w", err)
 	}
-	tlsConf, err := clientTLS(cfg, fallback.ALPN)
+	tlsConf, err := ClientTLS(cfg, fallback.ALPN)
 	if err != nil {
 		_ = raw.Close()
 		return nil, err

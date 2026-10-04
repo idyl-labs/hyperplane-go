@@ -15,10 +15,12 @@
 package dock
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"io"
 	"net"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -214,5 +216,52 @@ func TestWaitLaneReturnsOnCancelAndDockEnd(t *testing.T) {
 	e2.conn.cancel()
 	if _, err := d2.WaitLane(laneCtx(t), 7); !errors.Is(err, context.Canceled) {
 		t.Fatalf("WaitLane on an ended dock = %v, want the connection's context.Canceled", err)
+	}
+}
+
+// finishStream serves fixed bytes and then end, the error a read past
+// them returns, and records how the stream was finished.
+type finishStream struct {
+	r        *bytes.Reader
+	end      error
+	closed   bool
+	deadline time.Time
+	cancels  []uint64
+}
+
+func (s *finishStream) Read(p []byte) (int, error) {
+	if s.r.Len() == 0 {
+		return 0, s.end
+	}
+	return s.r.Read(p)
+}
+func (s *finishStream) Write(p []byte) (int, error)       { return len(p), nil }
+func (s *finishStream) Close() error                      { s.closed = true; return nil }
+func (s *finishStream) CancelRead(code uint64)            { s.cancels = append(s.cancels, code) }
+func (s *finishStream) CancelWrite(code uint64)           { s.cancels = append(s.cancels, code) }
+func (s *finishStream) SetReadDeadline(t time.Time) error { s.deadline = t; return nil }
+
+// FinishStream closes the write direction, reads the peer's remaining
+// data under a bounded deadline, and resets nothing when the peer
+// finishes; when the read ends in an error, such as the deadline, both
+// directions are reset with DockCodeProtocol.
+func TestFinishStream(t *testing.T) {
+	clean := &finishStream{r: bytes.NewReader([]byte("tail")), end: io.EOF}
+	before := time.Now()
+	FinishStream(clean)
+	if !clean.closed || clean.r.Len() != 0 || len(clean.cancels) != 0 {
+		t.Fatalf("clean finish: closed=%v unread=%d cancels=%v", clean.closed, clean.r.Len(), clean.cancels)
+	}
+	if clean.deadline.Before(before) || clean.deadline.After(time.Now().Add(drainTimeout)) {
+		t.Fatalf("read deadline %v is not bounded by drainTimeout", clean.deadline)
+	}
+
+	stalled := &finishStream{r: bytes.NewReader(nil), end: os.ErrDeadlineExceeded}
+	FinishStream(stalled)
+	if !stalled.closed {
+		t.Fatal("stalled finish did not close the write direction")
+	}
+	if len(stalled.cancels) != 2 || stalled.cancels[0] != wire.DockCodeProtocol || stalled.cancels[1] != wire.DockCodeProtocol {
+		t.Fatalf("stalled finish cancels = %v, want both directions with DockCodeProtocol", stalled.cancels)
 	}
 }

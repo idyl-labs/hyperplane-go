@@ -145,6 +145,8 @@
 //	                 arrives, for a protocol whose reply names a lane
 //	NewRPC           an *RPC over a Stream, for a protocol that
 //	                 establishes an RPC
+//	FinishStream     the clean end of a one-shot exchange: FIN, then the
+//	                 peer's data read to EOF, with a bounded wait
 //
 // Lanes, RPCs and events, as described above, need none of them.
 //

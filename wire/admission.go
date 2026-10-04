@@ -105,7 +105,7 @@ func MarshalZoneAdmissionLease(envelope *apb.ZoneAdmissionLease) ([]byte, error)
 		return nil, err
 	}
 	var payload apb.ZoneAdmissionLeasePayload
-	if err := unmarshalCanonical(envelope.GetPayload(), &payload, apb.MaxLeasePayloadBytes, "lease payload"); err != nil {
+	if err := UnmarshalCanonical(envelope.GetPayload(), &payload, apb.MaxLeasePayloadBytes, "lease payload"); err != nil {
 		return nil, err
 	}
 	if err := ValidateZoneAdmissionLeasePayload(&payload, payload.GetIssuedAtUnixS()); err != nil {
@@ -126,14 +126,14 @@ func MarshalZoneAdmissionLease(envelope *apb.ZoneAdmissionLease) ([]byte, error)
 // envelope for signature verification. Unknown or non-minimal encodings fail.
 func ParseZoneAdmissionLease(raw []byte, nowUnixS uint64) (*apb.ZoneAdmissionLease, *apb.ZoneAdmissionLeasePayload, error) {
 	var envelope apb.ZoneAdmissionLease
-	if err := unmarshalCanonical(raw, &envelope, apb.MaxLeaseEnvelopeBytes, "lease envelope"); err != nil {
+	if err := UnmarshalCanonical(raw, &envelope, apb.MaxLeaseEnvelopeBytes, "lease envelope"); err != nil {
 		return nil, nil, err
 	}
 	if err := validateZoneAdmissionLeaseEnvelope(&envelope); err != nil {
 		return nil, nil, err
 	}
 	var payload apb.ZoneAdmissionLeasePayload
-	if err := unmarshalCanonical(envelope.GetPayload(), &payload, apb.MaxLeasePayloadBytes, "lease payload"); err != nil {
+	if err := UnmarshalCanonical(envelope.GetPayload(), &payload, apb.MaxLeasePayloadBytes, "lease payload"); err != nil {
 		return nil, nil, err
 	}
 	if err := ValidateZoneAdmissionLeasePayload(&payload, nowUnixS); err != nil {
@@ -146,7 +146,7 @@ func validateZoneAdmissionLeaseEnvelope(envelope *apb.ZoneAdmissionLease) error 
 	if envelope == nil {
 		return fmt.Errorf("%w: lease envelope absent", ErrAdmissionMalformed)
 	}
-	if err := rejectUnknown(envelope.ProtoReflect()); err != nil {
+	if err := RejectUnknown(envelope.ProtoReflect()); err != nil {
 		return fmt.Errorf("%w: envelope unknown content: %v", ErrAdmissionMalformed, err)
 	}
 	if envelope.GetContract() != apb.ZoneAdmissionLeaseContract {
@@ -204,7 +204,7 @@ func ValidateZoneAdmissionLeasePayload(payload *apb.ZoneAdmissionLeasePayload, n
 	if payload == nil {
 		return fmt.Errorf("%w: lease payload absent", ErrAdmissionMalformed)
 	}
-	if err := rejectUnknown(payload.ProtoReflect()); err != nil {
+	if err := RejectUnknown(payload.ProtoReflect()); err != nil {
 		return fmt.Errorf("%w: payload unknown content: %v", ErrAdmissionMalformed, err)
 	}
 	if payload.GetVersion() != apb.PayloadVersion {
@@ -557,7 +557,7 @@ func BuildDockProofInput(leaseEnvelope []byte, keepaliveMs uint32, predecessor *
 		return nil, fmt.Errorf("%w: dock exporter size %d", ErrAdmissionMalformed, len(exporter))
 	}
 	if predecessor != nil {
-		if err := validateDockGeneration(predecessor); err != nil {
+		if err := ValidateDockGeneration(predecessor); err != nil {
 			return nil, err
 		}
 	}
@@ -584,7 +584,7 @@ func BuildDockProofInput(leaseEnvelope []byte, keepaliveMs uint32, predecessor *
 // ParseDockProofInput accepts only the unique canonical encoding.
 func ParseDockProofInput(raw []byte) (*apb.DockProofInput, error) {
 	var input apb.DockProofInput
-	if err := unmarshalCanonical(raw, &input, apb.MaxDockProofInputBytes, "dock proof input"); err != nil {
+	if err := UnmarshalCanonical(raw, &input, apb.MaxDockProofInputBytes, "dock proof input"); err != nil {
 		return nil, err
 	}
 	if input.GetVersion() != apb.DockProofVersion || input.GetDockContract() != dockpb.Contract || input.GetExporterLabel() != apb.TLSExporterLabel ||
@@ -592,7 +592,7 @@ func ParseDockProofInput(raw []byte) (*apb.DockProofInput, error) {
 		return nil, fmt.Errorf("%w: dock proof profile", ErrAdmissionMalformed)
 	}
 	if input.GetPredecessorGen() != nil {
-		if err := validateDockGeneration(input.GetPredecessorGen()); err != nil {
+		if err := ValidateDockGeneration(input.GetPredecessorGen()); err != nil {
 			return nil, err
 		}
 	}
@@ -632,7 +632,7 @@ func ValidateDockHelloV3(hello *dockpb.DockHello) error {
 	if hello == nil {
 		return fmt.Errorf("%w: dock/3 hello absent", ErrAdmissionMalformed)
 	}
-	if err := rejectUnknown(hello.ProtoReflect()); err != nil {
+	if err := RejectUnknown(hello.ProtoReflect()); err != nil {
 		return fmt.Errorf("%w: dock/3 unknown content: %v", ErrAdmissionMalformed, err)
 	}
 	if hello.GetContract() != dockpb.Contract || len(hello.GetLeaseEnvelope()) == 0 || len(hello.GetLeaseEnvelope()) > apb.MaxLeaseEnvelopeBytes ||
@@ -652,7 +652,12 @@ func ValidateDockHelloV3(hello *dockpb.DockHello) error {
 	return nil
 }
 
-func validateDockGeneration(generation *mpb.DockGen) error {
+// ValidateDockGeneration returns an error wrapping ErrAdmissionMalformed
+// unless generation names one exact dock generation: an edge tag whose
+// incarnation and lease id are each 1 to admissionv3.MaxIdentifierBytes
+// bytes, a non-zero slot, and a nonce of exactly
+// admissionv3.DockGenerationNonceBytes bytes.
+func ValidateDockGeneration(generation *mpb.DockGen) error {
 	if generation == nil || generation.GetEdge() == nil || len(generation.GetEdge().GetIncarnation()) == 0 || len(generation.GetEdge().GetIncarnation()) > apb.MaxIdentifierBytes ||
 		len(generation.GetEdge().GetLeaseId()) == 0 || len(generation.GetEdge().GetLeaseId()) > apb.MaxIdentifierBytes ||
 		generation.GetSlot() == 0 || len(generation.GetNonce()) != apb.DockGenerationNonceBytes {
@@ -661,7 +666,15 @@ func validateDockGeneration(generation *mpb.DockGen) error {
 	return nil
 }
 
-func unmarshalCanonical(raw []byte, message proto.Message, max int, name string) error {
+// UnmarshalCanonical decodes raw into message and accepts it only if raw
+// is the message's canonical encoding (see MarshalCanonical). raw must be
+// 1 to max bytes long. A size or decoding failure wraps
+// ErrAdmissionMalformed, as does input that decodes but has no canonical
+// encoding, such as a message holding unknown fields.
+// ErrAdmissionNonCanonical is reserved for input whose canonical
+// re-encoding succeeds but differs from raw. name labels the input in
+// error text only.
+func UnmarshalCanonical(raw []byte, message proto.Message, max int, name string) error {
 	if len(raw) == 0 || len(raw) > max {
 		return fmt.Errorf("%w: %s size %d", ErrAdmissionMalformed, name, len(raw))
 	}

@@ -133,7 +133,7 @@ func CanonicalTrustSnapshotPayload(snapshot *TrustSnapshot) ([]byte, error) {
 	if snapshot == nil {
 		return nil, fmt.Errorf("%w: absent", ErrMalformed)
 	}
-	purpose, ok := purposeText(snapshot.GetPurpose())
+	purpose, ok := PurposeText(snapshot.GetPurpose())
 	if !ok {
 		return nil, fmt.Errorf("%w: purpose %d", ErrMalformed, snapshot.GetPurpose())
 	}
@@ -241,13 +241,13 @@ func ParseCanonicalTrustSnapshotPayload(payload, digest []byte) (*TrustSnapshot,
 // RETIRING); and a canonical payload and digest that match the structured
 // fields. Unknown protobuf fields are refused.
 func ValidateTrustSnapshot(snapshot *TrustSnapshot) error {
-	if snapshot == nil || hasUnknown(snapshot) {
+	if snapshot == nil || HasUnknown(snapshot) {
 		return fmt.Errorf("%w: absent or unknown fields", ErrMalformed)
 	}
-	if !validZone(snapshot.GetZone()) || snapshot.GetSequence() == 0 {
+	if !ValidZone(snapshot.GetZone()) || snapshot.GetSequence() == 0 {
 		return fmt.Errorf("%w: zone or sequence", ErrMalformed)
 	}
-	if _, ok := purposeText(snapshot.GetPurpose()); !ok {
+	if _, ok := PurposeText(snapshot.GetPurpose()); !ok {
 		return fmt.Errorf("%w: purpose", ErrMalformed)
 	}
 	issuedAt := time.Unix(snapshot.GetIssuedAtUnixS(), 0).UTC()
@@ -262,7 +262,7 @@ func ValidateTrustSnapshot(snapshot *TrustSnapshot) error {
 	seenFingerprints := make(map[[SHA256Bytes]byte]struct{}, len(snapshot.GetGenerations()))
 	previousID := ""
 	for index, generation := range snapshot.GetGenerations() {
-		if generation == nil || hasUnknown(generation) {
+		if generation == nil || HasUnknown(generation) {
 			return fmt.Errorf("%w: generation %d absent or unknown fields", ErrMalformed, index)
 		}
 		id := generation.GetGenerationId()
@@ -376,7 +376,9 @@ func JudgeSuccessor(current, next *TrustSnapshot) (duplicate bool, err error) {
 	}
 }
 
-func purposeText(purpose Purpose) (string, bool) {
+// PurposeText returns the text form of purpose used in a trust snapshot's
+// canonical payload, "JOIN" or "POD", and false for any other value.
+func PurposeText(purpose Purpose) (string, bool) {
 	switch purpose {
 	case Purpose_PURPOSE_JOIN:
 		return "JOIN", true
@@ -444,7 +446,10 @@ func cloneGenerations(input []*TrustGeneration) []*TrustGeneration {
 	return output
 }
 
-func validZone(value string) bool {
+// ValidZone reports whether value is a valid zone name: 1 to MaxZoneBytes
+// bytes of lowercase ASCII letters, digits and hyphens, neither starting
+// nor ending with a hyphen.
+func ValidZone(value string) bool {
 	return len(value) > 0 && len(value) <= MaxZoneBytes && zonePattern.MatchString(value)
 }
 
@@ -460,7 +465,9 @@ func validText(value string, maximum int) bool {
 	return true
 }
 
-func hasUnknown(message proto.Message) bool {
+// HasUnknown reports whether message holds unknown fields at its top
+// level. Nested messages are not inspected.
+func HasUnknown(message proto.Message) bool {
 	return len(message.ProtoReflect().GetUnknown()) != 0
 }
 

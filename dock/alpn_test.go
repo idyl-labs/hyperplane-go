@@ -37,7 +37,10 @@ import (
 // list: exactly idyl/2 and nothing else. There is no other QUIC protocol
 // for the client to fall back to.
 func TestQUICALPNOfferPinned(t *testing.T) {
-	want := []string{"idyl/2"}
+	if ALPN != "idyl/2" {
+		t.Fatalf("ALPN = %q, want idyl/2", ALPN)
+	}
+	want := []string{ALPN}
 	if len(quicALPNOffer) != len(want) {
 		t.Fatalf("quicALPNOffer = %v, want %v", quicALPNOffer, want)
 	}
@@ -52,7 +55,7 @@ func TestClientTLSPropagatesOffer(t *testing.T) {
 	pki := newTestPKI(t)
 	cfg := pki.clientConfig()
 
-	conf, err := clientTLS(cfg, quicALPNOffer...)
+	conf, err := ClientTLS(cfg, quicALPNOffer...)
 	if err != nil {
 		t.Fatalf("clientTLS: %v", err)
 	}
@@ -65,7 +68,7 @@ func TestClientTLSPropagatesOffer(t *testing.T) {
 
 	// The TCP fallback offers its own single ALPN; the QUIC offer list
 	// does not apply to it.
-	fconf, err := clientTLS(cfg, fallback.ALPN)
+	fconf, err := ClientTLS(cfg, fallback.ALPN)
 	if err != nil {
 		t.Fatalf("clientTLS(fallback): %v", err)
 	}
@@ -93,7 +96,7 @@ func TestALPNServerSelects(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			clientConf, err := clientTLS(pki.clientConfig(), quicALPNOffer...)
+			clientConf, err := ClientTLS(pki.clientConfig(), quicALPNOffer...)
 			if err != nil {
 				t.Fatalf("clientTLS: %v", err)
 			}

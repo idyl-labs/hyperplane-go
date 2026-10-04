@@ -894,3 +894,55 @@ func TestOpenStreamOverBothTransports(t *testing.T) {
 		})
 	}
 }
+
+// FinishStream over both transports: when the edge finishes its direction
+// the stream ends without a reset, and when the edge never does, the
+// bounded drain resets it and the edge observes DockCodeProtocol.
+func TestFinishStreamOverBothTransports(t *testing.T) {
+	old := drainTimeout
+	drainTimeout = 200 * time.Millisecond
+	t.Cleanup(func() { drainTimeout = old })
+	for _, transport := range edgeTransports {
+		t.Run(transport, func(t *testing.T) {
+			edge := newScriptedEdge(t, newTestPKI(t), transport, welcome(20_000))
+			d, s := edge.open(edge.config())
+			ctx := laneCtx(t)
+
+			done, err := d.OpenStream(ctx)
+			if err != nil {
+				t.Fatalf("OpenStream: %v", err)
+			}
+			if _, err := done.Write([]byte{0x7f}); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			in, err := s.acceptStream(ctx)
+			if err != nil {
+				t.Fatalf("edge accept: %v", err)
+			}
+			if _, err := in.Write([]byte("reply")); err != nil {
+				t.Fatalf("edge write: %v", err)
+			}
+			_ = in.Close()
+			FinishStream(done)
+			if got, err := io.ReadAll(in); err != nil || string(got) != "\x7f" {
+				t.Fatalf("edge read = %q, %v; want the request then FIN, no reset", got, err)
+			}
+
+			stalled, err := d.OpenStream(ctx)
+			if err != nil {
+				t.Fatalf("OpenStream: %v", err)
+			}
+			if _, err := stalled.Write([]byte{0x7f}); err != nil {
+				t.Fatalf("write: %v", err)
+			}
+			held, err := s.acceptStream(ctx)
+			if err != nil {
+				t.Fatalf("edge accept: %v", err)
+			}
+			FinishStream(stalled)
+			if code, err := writeUntilReset(ctx, held); err != nil || code != wire.DockCodeProtocol {
+				t.Fatalf("stalled stream reached the edge as %#x, %v; want a DockCodeProtocol reset", code, err)
+			}
+		})
+	}
+}
