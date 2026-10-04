@@ -427,3 +427,64 @@ func TestReadDeadline(t *testing.T) {
 		t.Fatalf("post-deadline read: %v", err)
 	}
 }
+
+// holdAfterClose passes writes through, and after writing a CLOSE frame
+// waits until its connection has ended. That forces the order in which the
+// peer answers the CLOSE by closing the TCP connection, and the reader
+// sees EOF, before CloseWithError records its own cause.
+type holdAfterClose struct {
+	net.Conn
+	conn chan *Conn
+}
+
+func (h *holdAfterClose) Write(b []byte) (int, error) {
+	n, err := h.Conn.Write(b)
+	if err == nil && len(b) > 0 && b[0] == typeClose {
+		c := <-h.conn
+		select {
+		case <-c.Context().Done():
+		case <-time.After(5 * time.Second):
+		}
+	}
+	return n, err
+}
+
+// The side that calls CloseWithError records its own code and reason as
+// the close cause, even when the peer's reaction to the CLOSE frame ends
+// the connection first.
+func TestCloseWithErrorCauseWinsOverPeerHangup(t *testing.T) {
+	ln, err := net.Listen("tcp", "127.0.0.1:0")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _ = ln.Close() })
+	accepted := make(chan net.Conn, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			t.Error(err)
+			return
+		}
+		accepted <- c
+	}()
+	cc, err := net.Dial("tcp", ln.Addr().String())
+	if err != nil {
+		t.Fatal(err)
+	}
+	held := &holdAfterClose{Conn: cc, conn: make(chan *Conn, 1)}
+	client := Client(held, 0)
+	held.conn <- client
+	server := Server(<-accepted, 0)
+	t.Cleanup(func() {
+		_ = client.CloseWithError(0, "")
+		_ = server.CloseWithError(0, "")
+	})
+
+	_ = client.CloseWithError(0x10, "drain")
+	<-server.Context().Done()
+	<-client.Context().Done()
+	var ce *ConnError
+	if !errors.As(context.Cause(client.Context()), &ce) || ce.Remote || ce.Code != 0x10 || ce.Reason != "drain" {
+		t.Fatalf("local close cause = %v, want the local ConnError 0x10 drain", context.Cause(client.Context()))
+	}
+}
