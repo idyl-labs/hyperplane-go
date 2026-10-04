@@ -16,6 +16,8 @@ package dock
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"io"
 	"time"
 
@@ -45,8 +47,101 @@ func drainReceive(s transportReceiveStream) {
 	}
 }
 
+// NakError is a typed refusal of a delivery verb (SendEvent, OpenRPC or
+// OpenLane) by the edge.
+type NakError struct {
+	Code dpb.NakCode
+}
+
+func (e NakError) Error() string {
+	return fmt.Sprintf("dock: delivery refused: %s", e.Code)
+}
+
+// openDelivery opens a one-shot delivery stream and writes its kind byte.
+// The context's deadline, if any, also bounds reading the reply.
+func (d *Dock) openDelivery(ctx context.Context) (transportStream, error) {
+	s, err := d.conn.OpenStreamSync(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if _, err := s.Write([]byte{wire.StreamKindDelivery}); err != nil {
+		return nil, err
+	}
+	if deadline, ok := ctx.Deadline(); ok {
+		_ = s.SetReadDeadline(deadline)
+	}
+	return s, nil
+}
+
+// SendEvent delivers one payload to the dock that locator names. The
+// locator is sealed by the fabric and opaque to the caller. SendEvent is
+// one-way and best-effort: a nil error means the edge acknowledged that
+// the payload entered the target dock's stream, not that the application
+// handled it. A refusal is a NakError. The delivery stream is finished
+// with FinishStream on every path.
+func (d *Dock) SendEvent(ctx context.Context, locator, payload []byte) error {
+	s, err := d.openDelivery(ctx)
+	if err != nil {
+		return err
+	}
+	defer FinishStream(s)
+	if err := wire.WriteFrame(s, &dpb.RequesterToEdge{Msg: &dpb.RequesterToEdge_SendEvent{
+		SendEvent: &dpb.SendEvent{Locator: locator, Payload: payload},
+	}}); err != nil {
+		return err
+	}
+	var reply dpb.EdgeToRequester
+	if err := wire.ReadFrame(s, &reply, 0); err != nil {
+		return err
+	}
+	switch m := reply.GetMsg().(type) {
+	case *dpb.EdgeToRequester_Ack:
+		return nil
+	case *dpb.EdgeToRequester_Nak:
+		return NakError{Code: m.Nak.GetCode()}
+	}
+	return errors.New("dock: unexpected delivery reply")
+}
+
+// OpenRPC opens an RPC to the dock that locator names: a bidirectional
+// byte pipe whose far end the target dock receives from AcceptRPC, with
+// metadata, which the fabric does not interpret. A refusal is a NakError.
+// On any error the stream is released; on success it belongs to the
+// returned RPC.
+func (d *Dock) OpenRPC(ctx context.Context, locator, metadata []byte) (*RPC, error) {
+	s, err := d.openDelivery(ctx)
+	if err != nil {
+		return nil, err
+	}
+	handedOff := false
+	defer func() {
+		if !handedOff {
+			_ = s.Close()
+		}
+	}()
+	if err := wire.WriteFrame(s, &dpb.RequesterToEdge{Msg: &dpb.RequesterToEdge_OpenRpc{
+		OpenRpc: &dpb.OpenRpc{Locator: locator, Metadata: metadata},
+	}}); err != nil {
+		return nil, err
+	}
+	var reply dpb.EdgeToRequester
+	if err := wire.ReadFrame(s, &reply, 0); err != nil {
+		return nil, err
+	}
+	switch m := reply.GetMsg().(type) {
+	case *dpb.EdgeToRequester_RpcOpened:
+		_ = s.SetReadDeadline(time.Time{})
+		handedOff = true
+		return &RPC{stream: s}, nil
+	case *dpb.EdgeToRequester_Nak:
+		return nil, NakError{Code: m.Nak.GetCode()}
+	}
+	return nil, errors.New("dock: unexpected delivery reply")
+}
+
 // RPC is one RPC: an open bidirectional byte pipe between the RPC's two
-// ends. AcceptRPC returns inbound RPCs; NewRPC makes one from a stream.
+// ends. OpenRPC opens one, AcceptRPC returns inbound ones, and NewRPC
+// makes one from a stream.
 type RPC struct {
 	stream transportStream
 }

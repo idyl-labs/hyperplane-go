@@ -211,11 +211,17 @@ type laneEdge struct {
 // running, on the QUIC transport.
 func newLaneDock(t *testing.T) (*Dock, *laneEdge) {
 	t.Helper()
+	return newLaneDockOn(t, wire.TransportQUIC)
+}
+
+// newLaneDockOn is newLaneDock on the named transport.
+func newLaneDockOn(t *testing.T, transport string) (*Dock, *laneEdge) {
+	t.Helper()
 	ctrlEdge, ctrlClient := newLanePipe()
 	conn := newLaneConn()
 	d := &Dock{
 		conn:      conn,
-		transport: wire.TransportQUIC,
+		transport: transport,
 		control:   ctrlClient,
 		drained:   make(chan struct{}),
 	}

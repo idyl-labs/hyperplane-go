@@ -33,3 +33,8 @@ const (
 	// DockCodeProtocol reports that the peer violated the dock protocol.
 	DockCodeProtocol = 0x03
 )
+
+// StreamKindDelivery is the first byte of a delivery stream, which a
+// requester opens to send one delivery verb (deliveryv2.RequesterToEdge)
+// and read its reply.
+const StreamKindDelivery byte = 0x02

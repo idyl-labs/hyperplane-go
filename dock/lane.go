@@ -22,7 +22,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/idyl-labs/hyperplane-go/generation"
 	"github.com/idyl-labs/hyperplane-go/wire"
+	mpb "github.com/idyl-labs/hyperplane-go/wire/commonv2"
+	dpb "github.com/idyl-labs/hyperplane-go/wire/deliveryv2"
 	dockpb "github.com/idyl-labs/hyperplane-go/wire/dockv2"
 )
 
@@ -51,6 +54,26 @@ import (
 // own bound on reading an attribution header. It is a variable so tests
 // can shorten it.
 var laneAttachWait = 10 * time.Second
+
+// LaneTarget names one dock a lane attaches to. Locator is the route: a
+// sealed locator, opaque to the caller. The Expected fields, when set,
+// pin the target's generation, principal and endpoint kind for the life
+// of the lane: the fabric ends the lane as soon as a pinned value no
+// longer matches.
+type LaneTarget struct {
+	Locator           []byte
+	ExpectedGen       *generation.DockGen
+	ExpectedPrincipal string
+	ExpectedKind      mpb.EndpointKind
+}
+
+// LaneTargetConfirm reports the generation and principal actually
+// attached for one target, in the order of the OpenLane targets. The
+// principal is advisory, like Lane.PeerPrincipal.
+type LaneTargetConfirm struct {
+	Gen       generation.DockGen
+	Principal string
+}
 
 // ErrLaneClosed is returned for operations on a lane that has ended. An
 // ended lane never comes back; a new association needs a new lane.
@@ -222,6 +245,102 @@ func (s *LaneStream) Close() error { return s.stream.Close() }
 func (s *LaneStream) Abort() {
 	s.stream.CancelRead(wire.DockCodeProtocol)
 	s.stream.CancelWrite(wire.DockCodeProtocol)
+}
+
+// OpenLane asks the edge to establish a lane with the requested classes
+// (a bitset of the wire.LaneClass* values), which the edge grants exactly
+// or refuses with a NakError. metadata is delivered, uninterpreted, to
+// each target in its LaneAttached.
+//
+// With one target, this dock is the lane's other end: OpenLane returns the
+// lane once its LaneAttached has arrived, and the lane behaves like one
+// from AcceptLane. With two targets, the lane joins those two docks and
+// this dock is a third party that holds no lane state: the returned Lane
+// is nil. In both cases the confirms report what was attached for each
+// target. Any other number of targets is refused locally.
+//
+// A class set that includes wire.LaneClassFlow is refused locally, with
+// NAK_CODE_ADAPTER_MISMATCH, on a dock that uses the fallback transport,
+// which has no datagrams.
+func (d *Dock) OpenLane(ctx context.Context, targets []LaneTarget, classes uint64, metadata []byte) (*Lane, []LaneTargetConfirm, error) {
+	if d.control == nil {
+		return nil, nil, errors.New("dock: lanes need an admitted dock (use Open)")
+	}
+	if len(targets) != 1 && len(targets) != 2 {
+		return nil, nil, fmt.Errorf("dock: OpenLane takes 1 or 2 targets, got %d", len(targets))
+	}
+	if classes&wire.LaneClassFlow != 0 && d.transport == wire.TransportTCPFallback {
+		return nil, nil, NakError{Code: dpb.NakCode_NAK_CODE_ADAPTER_MISMATCH}
+	}
+	d.ensurePump()
+
+	pbTargets := make([]*dpb.LaneTarget, len(targets))
+	for i, tgt := range targets {
+		pt := &dpb.LaneTarget{
+			Locator:           tgt.Locator,
+			ExpectedPrincipal: tgt.ExpectedPrincipal,
+			ExpectedKind:      tgt.ExpectedKind,
+		}
+		if tgt.ExpectedGen != nil {
+			g, err := wire.GenToProtoV2(*tgt.ExpectedGen)
+			if err != nil {
+				return nil, nil, err
+			}
+			pt.ExpectedGen = g
+		}
+		pbTargets[i] = pt
+	}
+
+	s, err := d.openDelivery(ctx)
+	if err != nil {
+		return nil, nil, err
+	}
+	// The reply ends the one-shot exchange on every path.
+	defer FinishStream(s)
+	if err := wire.WriteFrame(s, &dpb.RequesterToEdge{Msg: &dpb.RequesterToEdge_OpenLane{
+		OpenLane: &dpb.OpenLane{Targets: pbTargets, LaneClass: classes, Metadata: metadata},
+	}}); err != nil {
+		return nil, nil, err
+	}
+	var reply dpb.EdgeToRequester
+	if err := wire.ReadFrame(s, &reply, 0); err != nil {
+		return nil, nil, err
+	}
+	switch m := reply.GetMsg().(type) {
+	case *dpb.EdgeToRequester_LaneOpened:
+		pbConfirms := m.LaneOpened.GetTargetConfirms()
+		if len(pbConfirms) != len(targets) {
+			// One confirm per target, in order; anything else is a broken
+			// edge, refused as a malformed reply.
+			return nil, nil, fmt.Errorf("dock: LaneOpened carried %d target_confirms for %d targets",
+				len(pbConfirms), len(targets))
+		}
+		confirms := make([]LaneTargetConfirm, len(pbConfirms))
+		for i, c := range pbConfirms {
+			confirms[i] = LaneTargetConfirm{Principal: c.GetPrincipal()}
+			if c.GetGen() != nil {
+				confirms[i].Gen = wire.GenFromProtoV2(c.GetGen())
+			}
+		}
+		if len(targets) == 2 {
+			// A lane between two other docks: this dock holds no lane state.
+			return nil, confirms, nil
+		}
+		id := m.LaneOpened.GetLaneId()
+		if id == 0 {
+			return nil, confirms, errors.New("dock: LaneOpened named no lane_id for a requester↔target lane")
+		}
+		// LaneOpened establishes the lane; this dock's own LaneAttached may
+		// still be in flight on the control stream.
+		l, err := d.WaitLane(ctx, id)
+		if err != nil {
+			return nil, confirms, err
+		}
+		return l, confirms, nil
+	case *dpb.EdgeToRequester_Nak:
+		return nil, nil, NakError{Code: m.Nak.GetCode()}
+	}
+	return nil, nil, errors.New("dock: unexpected reply to OpenLane")
 }
 
 // AcceptLane blocks for the next lane the edge attached to this dock, as

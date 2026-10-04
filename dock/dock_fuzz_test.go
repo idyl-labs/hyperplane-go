@@ -17,6 +17,7 @@ package dock
 import (
 	"bytes"
 	"context"
+	"errors"
 	"io"
 	"slices"
 	"testing"
@@ -33,7 +34,8 @@ import (
 // dock_fuzz_test.go: fuzz targets for every place the dock reads bytes
 // the edge controls: the first byte and attribution header of an inbound
 // bidirectional stream (and the RPC preface behind it), the control
-// stream, pushed event frames, and inbound datagrams. Each target checks the outcome against
+// stream, pushed event frames, inbound datagrams, and the edge's reply to
+// a delivery verb. Each target checks the outcome against
 // the documented contract, not only the absence of a panic.
 
 // bytesStream is a transportStream that serves fixed bytes and then EOF,
@@ -396,6 +398,62 @@ func FuzzInboundDatagram(f *testing.F) {
 		got := flowLane.flows[0]
 		if got.flowID != want.FlowID || !bytes.Equal(got.payload, want.Payload) {
 			t.Fatalf("queued (%d, %x), want (%d, %x)", got.flowID, got.payload, want.FlowID, want.Payload)
+		}
+	})
+}
+
+// FuzzDeliveryReply feeds arbitrary bytes as the edge's reply to SendEvent
+// and to OpenRPC. The contract: SendEvent succeeds only on an Ack and
+// returns a NakError only on a Nak; OpenRPC succeeds only on RpcOpened and
+// otherwise releases its stream; SendEvent always closes its stream.
+func FuzzDeliveryReply(f *testing.F) {
+	for _, m := range []*dpb.EdgeToRequester{
+		{Msg: &dpb.EdgeToRequester_Ack{Ack: &dpb.Ack{}}},
+		{Msg: &dpb.EdgeToRequester_Nak{Nak: &dpb.Nak{Code: dpb.NakCode_NAK_CODE_OVERLOADED}}},
+		{Msg: &dpb.EdgeToRequester_RpcOpened{RpcOpened: &dpb.RpcOpened{}}},
+		{Msg: &dpb.EdgeToRequester_LaneOpened{LaneOpened: &dpb.LaneOpened{LaneId: 3}}},
+		{},
+	} {
+		f.Add(mustFrame(f, m))
+	}
+	f.Add([]byte{0x00, 0x00, 0x00, 0x02, 0x0a})
+	f.Add([]byte{})
+
+	f.Fuzz(func(t *testing.T, raw []byte) {
+		var reply dpb.EdgeToRequester
+		decodeErr := wire.ReadFrame(bytes.NewReader(raw), &reply, 0)
+
+		event := &recordingStream{serve: bytes.NewReader(raw), err: io.EOF}
+		err := (&Dock{conn: &rpcConn{s: event}}).SendEvent(context.Background(), []byte("loc"), nil)
+		var nak NakError
+		switch {
+		case decodeErr == nil && reply.GetAck() != nil:
+			if err != nil {
+				t.Fatalf("SendEvent refused an Ack: %v", err)
+			}
+		case decodeErr == nil && reply.GetNak() != nil:
+			if !errors.As(err, &nak) || nak.Code != reply.GetNak().GetCode() {
+				t.Fatalf("SendEvent on a Nak = %v", err)
+			}
+		default:
+			if err == nil || errors.As(err, &nak) {
+				t.Fatalf("SendEvent on reply %x = %v", raw, err)
+			}
+		}
+		if !event.closed {
+			t.Fatal("SendEvent did not close its stream")
+		}
+
+		rpcStream := &recordingStream{serve: bytes.NewReader(raw), err: io.EOF}
+		rpc, err := (&Dock{conn: &rpcConn{s: rpcStream}}).OpenRPC(context.Background(), []byte("loc"), nil)
+		if decodeErr == nil && reply.GetRpcOpened() != nil {
+			if err != nil || rpc == nil || rpcStream.released() {
+				t.Fatalf("OpenRPC on RpcOpened = %v, %v, released=%v", rpc, err, rpcStream.released())
+			}
+			return
+		}
+		if err == nil || rpc != nil || !rpcStream.released() {
+			t.Fatalf("OpenRPC on reply %x = %v, %v, released=%v", raw, rpc, err, rpcStream.released())
 		}
 	})
 }

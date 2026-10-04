@@ -946,3 +946,102 @@ func TestFinishStreamOverBothTransports(t *testing.T) {
 		})
 	}
 }
+
+// edgeServeVerb accepts one delivery stream, checks its kind byte, reads
+// the verb and writes reply.
+func edgeServeVerb(ctx context.Context, t *testing.T, s *edgeSession, reply *dpb.EdgeToRequester) (edgeBidi, *dpb.RequesterToEdge) {
+	t.Helper()
+	st, err := s.acceptStream(ctx)
+	if err != nil {
+		t.Fatalf("edge accept: %v", err)
+	}
+	kind := make([]byte, 1)
+	if _, err := io.ReadFull(st, kind); err != nil || kind[0] != wire.StreamKindDelivery {
+		t.Fatalf("delivery kind byte = %x, %v", kind, err)
+	}
+	var verb dpb.RequesterToEdge
+	if err := wire.ReadFrame(st, &verb, 0); err != nil {
+		t.Fatalf("verb: %v", err)
+	}
+	if err := wire.WriteFrame(st, reply); err != nil {
+		t.Fatalf("reply: %v", err)
+	}
+	return st, &verb
+}
+
+// The three delivery verbs over both transports: SendEvent is
+// acknowledged, OpenRPC becomes a byte pipe in both directions, and
+// OpenLane returns the lane the edge then attaches.
+func TestRequesterVerbsOverBothTransports(t *testing.T) {
+	for _, transport := range edgeTransports {
+		t.Run(transport, func(t *testing.T) {
+			edge := newScriptedEdge(t, newTestPKI(t), transport, welcome(20_000))
+			d, s := edge.open(edge.config())
+			ctx := laneCtx(t)
+
+			sent := make(chan error, 1)
+			go func() { sent <- d.SendEvent(ctx, []byte("loc-a"), []byte("payload")) }()
+			st, verb := edgeServeVerb(ctx, t, s, &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_Ack{Ack: &dpb.Ack{}}})
+			_ = st.Close()
+			if err := <-sent; err != nil {
+				t.Fatalf("SendEvent: %v", err)
+			}
+			if ev := verb.GetSendEvent(); string(ev.GetLocator()) != "loc-a" || string(ev.GetPayload()) != "payload" {
+				t.Fatalf("SendEvent verb = %v", verb)
+			}
+
+			type opened struct {
+				rpc *RPC
+				err error
+			}
+			rpcs := make(chan opened, 1)
+			go func() {
+				rpc, err := d.OpenRPC(ctx, []byte("loc-b"), []byte(ReportRPCMetadata))
+				rpcs <- opened{rpc, err}
+			}()
+			pipe, verb := edgeServeVerb(ctx, t, s, &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_RpcOpened{RpcOpened: &dpb.RpcOpened{}}})
+			o := <-rpcs
+			if o.err != nil {
+				t.Fatalf("OpenRPC: %v", o.err)
+			}
+			if string(verb.GetOpenRpc().GetMetadata()) != ReportRPCMetadata {
+				t.Fatalf("OpenRPC verb = %v", verb)
+			}
+			if _, err := o.rpc.Write([]byte("ping")); err != nil {
+				t.Fatalf("rpc write: %v", err)
+			}
+			_ = o.rpc.Close()
+			if got, err := io.ReadAll(pipe); err != nil || string(got) != "ping" {
+				t.Fatalf("edge read = %q, %v", got, err)
+			}
+			if _, err := pipe.Write([]byte("pong")); err != nil {
+				t.Fatalf("edge write: %v", err)
+			}
+			_ = pipe.Close()
+			if got, err := io.ReadAll(o.rpc); err != nil || string(got) != "pong" {
+				t.Fatalf("rpc read = %q, %v", got, err)
+			}
+
+			type established struct {
+				lane *Lane
+				err  error
+			}
+			lanes := make(chan established, 1)
+			go func() {
+				lane, _, err := d.OpenLane(ctx, []LaneTarget{{Locator: []byte("loc-c")}}, wire.LaneClassStream, nil)
+				lanes <- established{lane, err}
+			}()
+			st, _ = edgeServeVerb(ctx, t, s, &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_LaneOpened{LaneOpened: &dpb.LaneOpened{
+				LaneId: 31, TargetConfirms: []*dpb.LaneTargetConfirm{{Principal: "spiffe://example.com/target"}},
+			}}})
+			s.sendControl(t, &dockpb.EdgeToClient{Msg: &dockpb.EdgeToClient_LaneAttached{LaneAttached: &dockpb.LaneAttached{
+				LaneId: 31, LaneClass: wire.LaneClassStream, PeerPrincipal: "spiffe://example.com/target",
+			}}})
+			_ = st.Close()
+			l := <-lanes
+			if l.err != nil || l.lane == nil || l.lane.ID() != 31 {
+				t.Fatalf("OpenLane = %v, %v; want lane 31", l.lane, l.err)
+			}
+		})
+	}
+}
