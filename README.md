@@ -12,7 +12,7 @@ An endpoint (a node, a pod, one leg of a session, a share) connects to a
 Hyperplane edge with a *dock*: one mutually authenticated connection over
 QUIC, or over TCP and TLS where UDP is blocked. Through its dock, the
 endpoint receives lanes to other endpoints, events and RPCs, without opening
-a listening port of its own.
+a listening port of its own, and reaches other endpoints the same way.
 
 ```go
 d, err := dock.Open(ctx, dock.Config{
@@ -47,7 +47,7 @@ session resumption, the transports, and lanes.
 
 | Package | Contents |
 | --- | --- |
-| [`dock`](dock) | The client: open a dock, accept lanes, lane streams and flows, events and RPCs. |
+| [`dock`](dock) | The client: open a dock; accept and open lanes, events and RPCs; lane streams and flows. |
 | [`wire`](wire) | Framing, canonical encoding, admission lease and dock proof verification, and the lane stream header. |
 | [`wire/fallback`](wire/fallback) | `fallback/1`, the TCP and TLS transport used where UDP is blocked. |
 | [`wire/svidtest`](wire/svidtest) | Test certificate authorities and admission signers. |

@@ -16,8 +16,10 @@
 // authenticated connection fabric. A client opens a dock (one
 // authenticated connection to a fabric edge), and then receives the
 // traffic the edge routes to it: lanes and their streams, pushed events,
-// and inbound RPCs. The package implements the wire protocol only; it
-// holds no routing or authorization policy of its own.
+// and inbound RPCs. It can also reach another dock it holds a locator for:
+// send it an event, open an RPC to it, or open a lane with it. The package
+// implements the wire protocol only; it holds no routing or authorization
+// policy of its own.
 //
 // # Opening a dock
 //
@@ -114,6 +116,26 @@
 //			}
 //		}()
 //	}
+//
+// # Reaching other docks
+//
+// A dock reaches another dock by a locator: a sealed route the fabric
+// issues, opaque to the client. Each of these verbs opens its own stream,
+// and the edge authorizes the verb before routing it. SendEvent and
+// OpenLane finish their stream once the edge has replied; a successful
+// OpenRPC keeps its stream as the RPC's byte pipe:
+//
+//	SendEvent  one payload, best-effort; the target receives it from
+//	           AcceptEvent
+//	OpenRPC    a bidirectional byte pipe (*RPC); the target receives it
+//	           from AcceptRPC
+//	OpenLane   a lane with one or two target docks, with the requested
+//	           lane classes; each target receives it from AcceptLane
+//
+// The edge refuses a verb with a typed NakError. A lane's targets can be
+// pinned to an expected generation, principal and endpoint kind
+// (LaneTarget); the fabric ends the lane as soon as a pinned value no
+// longer matches.
 //
 // # Transports
 //

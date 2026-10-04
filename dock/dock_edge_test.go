@@ -946,3 +946,223 @@ func TestFinishStreamOverBothTransports(t *testing.T) {
 		})
 	}
 }
+
+// edgeServeVerb accepts one delivery stream, checks its kind byte, reads
+// the verb and writes reply.
+func edgeServeVerb(ctx context.Context, t *testing.T, s *edgeSession, reply *dpb.EdgeToRequester) (edgeBidi, *dpb.RequesterToEdge) {
+	t.Helper()
+	st, err := s.acceptStream(ctx)
+	if err != nil {
+		t.Fatalf("edge accept: %v", err)
+	}
+	kind := make([]byte, 1)
+	if _, err := io.ReadFull(st, kind); err != nil || kind[0] != wire.StreamKindDelivery {
+		t.Fatalf("delivery kind byte = %x, %v", kind, err)
+	}
+	var verb dpb.RequesterToEdge
+	if err := wire.ReadFrame(st, &verb, 0); err != nil {
+		t.Fatalf("verb: %v", err)
+	}
+	if err := wire.WriteFrame(st, reply); err != nil {
+		t.Fatalf("reply: %v", err)
+	}
+	return st, &verb
+}
+
+// The three delivery verbs over both transports: SendEvent is
+// acknowledged, OpenRPC becomes a byte pipe in both directions, and
+// OpenLane returns the lane the edge then attaches.
+func TestRequesterVerbsOverBothTransports(t *testing.T) {
+	for _, transport := range edgeTransports {
+		t.Run(transport, func(t *testing.T) {
+			edge := newScriptedEdge(t, newTestPKI(t), transport, welcome(20_000))
+			d, s := edge.open(edge.config())
+			ctx := laneCtx(t)
+
+			sent := make(chan error, 1)
+			go func() { sent <- d.SendEvent(ctx, []byte("loc-a"), []byte("payload")) }()
+			st, verb := edgeServeVerb(ctx, t, s, &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_Ack{Ack: &dpb.Ack{}}})
+			_ = st.Close()
+			if err := <-sent; err != nil {
+				t.Fatalf("SendEvent: %v", err)
+			}
+			if ev := verb.GetSendEvent(); string(ev.GetLocator()) != "loc-a" || string(ev.GetPayload()) != "payload" {
+				t.Fatalf("SendEvent verb = %v", verb)
+			}
+
+			type opened struct {
+				rpc *RPC
+				err error
+			}
+			rpcs := make(chan opened, 1)
+			go func() {
+				rpc, err := d.OpenRPC(ctx, []byte("loc-b"), []byte(ReportRPCMetadata))
+				rpcs <- opened{rpc, err}
+			}()
+			pipe, verb := edgeServeVerb(ctx, t, s, &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_RpcOpened{RpcOpened: &dpb.RpcOpened{}}})
+			o := <-rpcs
+			if o.err != nil {
+				t.Fatalf("OpenRPC: %v", o.err)
+			}
+			if string(verb.GetOpenRpc().GetMetadata()) != ReportRPCMetadata {
+				t.Fatalf("OpenRPC verb = %v", verb)
+			}
+			if _, err := o.rpc.Write([]byte("ping")); err != nil {
+				t.Fatalf("rpc write: %v", err)
+			}
+			_ = o.rpc.Close()
+			if got, err := io.ReadAll(pipe); err != nil || string(got) != "ping" {
+				t.Fatalf("edge read = %q, %v", got, err)
+			}
+			if _, err := pipe.Write([]byte("pong")); err != nil {
+				t.Fatalf("edge write: %v", err)
+			}
+			_ = pipe.Close()
+			if got, err := io.ReadAll(o.rpc); err != nil || string(got) != "pong" {
+				t.Fatalf("rpc read = %q, %v", got, err)
+			}
+
+			type established struct {
+				lane *Lane
+				err  error
+			}
+			lanes := make(chan established, 1)
+			go func() {
+				lane, _, err := d.OpenLane(ctx, []LaneTarget{{Locator: []byte("loc-c")}}, wire.LaneClassStream, nil)
+				lanes <- established{lane, err}
+			}()
+			st, _ = edgeServeVerb(ctx, t, s, &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_LaneOpened{LaneOpened: &dpb.LaneOpened{
+				LaneId: 31, TargetConfirms: []*dpb.LaneTargetConfirm{{Principal: "spiffe://example.com/target"}},
+			}}})
+			s.sendControl(t, &dockpb.EdgeToClient{Msg: &dockpb.EdgeToClient_LaneAttached{LaneAttached: &dockpb.LaneAttached{
+				LaneId: 31, LaneClass: wire.LaneClassStream, PeerPrincipal: "spiffe://example.com/target",
+			}}})
+			_ = st.Close()
+			l := <-lanes
+			if l.err != nil || l.lane == nil || l.lane.ID() != 31 {
+				t.Fatalf("OpenLane = %v, %v; want lane 31", l.lane, l.err)
+			}
+		})
+	}
+}
+
+// runVerb runs one delivery verb and returns its error.
+func runVerb(ctx context.Context, d *Dock, verb string) error {
+	switch verb {
+	case "SendEvent":
+		return d.SendEvent(ctx, []byte("loc"), nil)
+	case "OpenRPC":
+		_, err := d.OpenRPC(ctx, []byte("loc"), nil)
+		return err
+	default:
+		_, _, err := d.OpenLane(ctx, []LaneTarget{{Locator: []byte("loc")}}, wire.LaneClassStream, nil)
+		return err
+	}
+}
+
+// awaitReset waits, with a bound, for the dock to reset st, and fails the
+// test unless the reset carries DockCodeProtocol. A stream the dock
+// abandons instead would block the edge's writes once their window fills.
+func awaitReset(t *testing.T, st edgeBidi) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	type result struct {
+		code uint64
+		err  error
+	}
+	reset := make(chan result, 1)
+	go func() {
+		code, err := writeUntilReset(ctx, st)
+		reset <- result{code, err}
+	}()
+	select {
+	case r := <-reset:
+		if r.err != nil || r.code != wire.DockCodeProtocol {
+			t.Fatalf("the edge saw %#x, %v; want a DockCodeProtocol reset", r.code, r.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the dock never reset the stream; the edge's writes blocked")
+	}
+}
+
+// readVerb accepts a delivery stream and reads its kind byte and verb.
+func readVerb(ctx context.Context, t *testing.T, s *edgeSession) edgeBidi {
+	t.Helper()
+	st, err := s.acceptStream(ctx)
+	if err != nil {
+		t.Fatalf("edge accept: %v", err)
+	}
+	var kind [1]byte
+	if _, err := io.ReadFull(st, kind[:]); err != nil {
+		t.Fatalf("kind byte: %v", err)
+	}
+	var verb dpb.RequesterToEdge
+	if err := wire.ReadFrame(st, &verb, 0); err != nil {
+		t.Fatalf("verb: %v", err)
+	}
+	return st
+}
+
+// Ending the context after a verb is sent, while the edge withholds its
+// reply, ends the verb promptly on both transports: it returns an error
+// matching context.Canceled, and the edge observes the stream reset with
+// DockCodeProtocol.
+func TestRequesterVerbsReturnOnCancel(t *testing.T) {
+	for _, transport := range edgeTransports {
+		for _, verb := range []string{"SendEvent", "OpenRPC", "OpenLane"} {
+			t.Run(transport+"/"+verb, func(t *testing.T) {
+				edge := newScriptedEdge(t, newTestPKI(t), transport, welcome(20_000))
+				d, s := edge.open(edge.config())
+				ctx, cancel := context.WithCancel(context.Background())
+				t.Cleanup(cancel)
+				done := make(chan error, 1)
+				go func() { done <- runVerb(ctx, d, verb) }()
+
+				st := readVerb(laneCtx(t), t, s)
+				cancel()
+				select {
+				case err := <-done:
+					if !errors.Is(err, context.Canceled) {
+						t.Fatalf("%s = %v, want an error matching context.Canceled", verb, err)
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatalf("%s did not return after its context ended", verb)
+				}
+				awaitReset(t, st)
+			})
+		}
+	}
+}
+
+// After a refusal from an edge that never finishes its direction, the
+// bounded drain resets the stream, on both transports and for both
+// SendEvent and OpenRPC, so the stream cannot stay half open.
+func TestRequesterRefusalResetsPeerThatNeverFinishes(t *testing.T) {
+	old := drainTimeout
+	drainTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { drainTimeout = old })
+	for _, transport := range edgeTransports {
+		for _, verb := range []string{"SendEvent", "OpenRPC"} {
+			t.Run(transport+"/"+verb, func(t *testing.T) {
+				edge := newScriptedEdge(t, newTestPKI(t), transport, welcome(20_000))
+				d, s := edge.open(edge.config())
+				ctx := laneCtx(t)
+				done := make(chan error, 1)
+				go func() { done <- runVerb(ctx, d, verb) }()
+
+				st := readVerb(ctx, t, s)
+				if err := wire.WriteFrame(st, &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_Nak{
+					Nak: &dpb.Nak{Code: dpb.NakCode_NAK_CODE_TARGET_GONE},
+				}}); err != nil {
+					t.Fatalf("reply: %v", err)
+				}
+				var nak NakError
+				if err := <-done; !errors.As(err, &nak) || nak.Code != dpb.NakCode_NAK_CODE_TARGET_GONE {
+					t.Fatalf("%s = %v, want NakError NAK_CODE_TARGET_GONE", verb, err)
+				}
+				awaitReset(t, st)
+			})
+		}
+	}
+}

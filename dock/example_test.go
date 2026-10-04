@@ -43,6 +43,9 @@ var (
 	svidKey      ed25519.PrivateKey
 	bundles      x509bundle.Source
 	lease        []byte
+	// targetLocator is the sealed locator of a dock to reach, issued by the
+	// fabric.
+	targetLocator []byte
 )
 
 // Open a dock with demand admission (the dock/3 hello) and serve the lanes
@@ -219,6 +222,44 @@ func ExampleLane_ReceiveFlow() {
 			}
 		}()
 	}
+}
+
+// Open a lane to another dock by its locator and send it one request on
+// a lane stream. A refusal from the edge is a typed NakError.
+func ExampleDock_OpenLane() {
+	ctx := context.Background()
+	d, err := dock.Open(ctx, dock.Config{
+		Endpoint: edgeEndpoint, ServerID: edgeID,
+		SVID: svid, Bundles: bundles,
+		Admission: &dock.DemandAdmission{
+			LeaseEnvelope: lease, Signer: svidKey,
+		},
+	})
+	if err != nil {
+		fmt.Println("open:", err)
+		return
+	}
+	defer func() { _ = d.Close() }()
+
+	lane, _, err := d.OpenLane(ctx, []dock.LaneTarget{{Locator: targetLocator}}, wire.LaneClassStream, nil)
+	var nak dock.NakError
+	switch {
+	case errors.As(err, &nak):
+		fmt.Println("refused:", nak.Code)
+		return
+	case err != nil:
+		fmt.Println("open lane:", err)
+		return
+	}
+	s, err := lane.OpenStream(ctx, wire.LaneStreamClassPassthrough, nil)
+	if err != nil {
+		fmt.Println("open stream:", err)
+		return
+	}
+	_, _ = s.Write([]byte("request"))
+	_ = s.Close()             // FIN: the request is complete
+	reply, _ := io.ReadAll(s) // the target's reply, to its FIN
+	fmt.Println(len(reply) > 0)
 }
 
 // An overloaded edge refuses a dock with ErrOverloaded; its RetryAfter is

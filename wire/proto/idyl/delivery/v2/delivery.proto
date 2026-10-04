@@ -14,14 +14,26 @@
 
 syntax = "proto3";
 
-// This file defines the two prefaces with which an edge opens a delivery
-// stream to a dock: EventPush on a unidirectional stream and RpcOpen on a
-// bidirectional stream. Each is written as one frame: a 4-byte big-endian
-// length followed by the marshaled message.
+// This file defines delivery: the verbs a requester sends to its edge to
+// reach another dock, and the prefaces with which an edge opens a delivery
+// stream to a dock.
 //
-// These messages carry no identity. The dock knows its own identity from its
-// SVID, and the fabric authorizes every delivery before the edge opens the
-// stream; there is no field in which either party could assert an identity.
+// A requester opens one bidirectional stream per verb, writes the stream
+// kind byte 0x02 and then one RequesterToEdge frame, and reads one
+// EdgeToRequester reply. The verbs are SendEvent (one payload, answered by
+// Ack or Nak), OpenRpc (a byte pipe, answered by RpcOpened or Nak) and
+// OpenLane (a lane, answered by LaneOpened or Nak). The target is named by
+// a sealed locator, which is opaque to the requester; the edge unseals it
+// and authorizes the verb before routing it.
+//
+// On the receiving side the edge opens a delivery stream to the target
+// dock: EventPush on a unidirectional stream and RpcOpen on a
+// bidirectional stream. Each frame is a 4-byte big-endian length followed
+// by the marshaled message.
+//
+// These messages carry no identity. Each dock knows its own identity from
+// its SVID, and the fabric authorizes every delivery before the edge acts
+// on it; there is no field in which either party could assert an identity.
 //
 // Lane streams on the same connection do not use these prefaces. A lane
 // stream begins with the raw lane stream header, whose first byte is the
@@ -31,7 +43,135 @@ syntax = "proto3";
 // byte.
 package idyl.delivery.v2;
 
+import "idyl/membership/v2/common.proto";
+
 option go_package = "github.com/idyl-labs/hyperplane-go/wire/deliveryv2";
+
+// NakCode is a typed refusal of a delivery verb. The edge checks the
+// requester's scope before anything about the target, so a requester
+// outside the target's scope learns nothing about whether it exists.
+enum NakCode {
+  NAK_CODE_UNSPECIFIED = 0;
+  NAK_CODE_BAD_CERT = 1;
+  NAK_CODE_SCOPE_RETIRED = 2;
+  NAK_CODE_UNAUTHORIZED = 3;
+  NAK_CODE_LOCATOR_INVALID = 4;
+  NAK_CODE_ADAPTER_MISMATCH = 5;
+  NAK_CODE_STALE_GEN = 6;
+  NAK_CODE_TARGET_GONE = 7;
+  NAK_CODE_TOMBSTONED = 8;
+  NAK_CODE_UNKNOWN_SHARD = 9;
+  NAK_CODE_ROUTE_EPOCH_STALE = 10;
+  NAK_CODE_ROUTE_UNAVAILABLE = 11;
+  // The edge is shedding load. It may refuse any verb or stream open this
+  // way; the requester retries later.
+  NAK_CODE_OVERLOADED = 12;
+  NAK_CODE_TUNNEL_REFUSED = 13;
+  NAK_CODE_SPLICE_GRANT_INVALID = 14;
+  NAK_CODE_BINDING_UNKNOWN = 15;
+  NAK_CODE_PLACEMENT_MISMATCH = 16;
+  // A lane limit, per dock or per scope, would be exceeded.
+  NAK_CODE_LANE_LIMIT = 17;
+}
+
+// SendEvent delivers one payload to the dock a locator names. It is
+// one-way and best-effort: Ack means the payload entered the target dock's
+// stream, never that the application handled it.
+message SendEvent {
+  bytes locator = 1; // sealed, opaque to the requester
+  bytes payload = 2; // opaque to the fabric
+}
+
+// OpenRpc asks for a bidirectional byte stream to the dock a locator
+// names. After RpcOpened, the stream is a transparent byte pipe to the
+// target.
+message OpenRpc {
+  bytes locator = 1;
+  bytes metadata = 2; // opaque to the fabric; delivered with the open
+}
+
+// LaneTarget names one dock a lane attaches to. The locator is the route.
+// The expected_* fields, when set, pin the target's generation, principal
+// and endpoint kind. They hold for the life of the lane: the fabric ends
+// the lane as soon as a pinned value no longer matches.
+message LaneTarget {
+  bytes locator = 1;
+  idyl.membership.v2.DockGen expected_gen = 2;
+  string expected_principal = 3;
+  idyl.membership.v2.EndpointKind expected_kind = 4;
+}
+
+// OpenLane asks the edge to establish a lane. The edge authorizes it once,
+// when it is established; streams and flows then attach to the lane with
+// the raw lane framing, not protobuf.
+message OpenLane {
+  // One target: the requester's own dock is the lane's other end. Two
+  // targets: a lane between those two docks, with the requester a third
+  // party that holds no lane state. Any other number is refused.
+  repeated LaneTarget targets = 1;
+  // The requested lane classes, as a bitset of the wire.LaneClass*
+  // values. The edge grants exactly this set or refuses the lane. The flow
+  // class is refused on the fallback transport, which has no datagrams.
+  uint64 lane_class = 2;
+  // Opaque to the fabric; delivered to each target in LaneAttached.
+  bytes metadata = 3;
+  reserved 4;
+  reserved "candidate_offer";
+}
+
+// LaneTargetConfirm reports the generation and principal actually
+// attached for one target. The principal is advisory: a lane's ends
+// authenticate each other through their own end-to-end secured channel.
+message LaneTargetConfirm {
+  idyl.membership.v2.DockGen gen = 1;
+  string principal = 2;
+}
+
+// LaneOpened confirms a lane. target_confirms aligns one to one with
+// OpenLane.targets.
+message LaneOpened {
+  // The lane's id on the requester's own connection, for a lane whose
+  // other end is the requester's dock. Unset for a lane between two other
+  // docks, which the requester's connection does not carry.
+  uint64 lane_id = 1;
+  repeated LaneTargetConfirm target_confirms = 2;
+  reserved 3;
+  reserved "candidate_answer";
+}
+
+// Ack confirms that a SendEvent payload entered the target dock's stream.
+message Ack {}
+
+// RpcOpened confirms the rpc stream is connected; bytes flow after it.
+message RpcOpened {}
+
+// Nak is a typed refusal.
+message Nak {
+  NakCode code = 1;
+}
+
+// RequesterToEdge is the requester's one verb on a delivery stream.
+message RequesterToEdge {
+  oneof msg {
+    SendEvent send_event = 1;
+    OpenRpc open_rpc = 2;
+    OpenLane open_lane = 4;
+  }
+  reserved 3;
+  reserved "open_splice";
+}
+
+// EdgeToRequester is the edge's reply to the verb.
+message EdgeToRequester {
+  oneof msg {
+    Ack ack = 1;
+    Nak nak = 2;
+    RpcOpened rpc_opened = 3;
+    LaneOpened lane_opened = 5;
+  }
+  reserved 4;
+  reserved "splice_established";
+}
 
 // EventPush carries one delivered payload to the dock on a unidirectional
 // stream the edge opens. Each event has its own stream, which gives every
