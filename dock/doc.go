@@ -120,8 +120,10 @@
 // # Reaching other docks
 //
 // A dock reaches another dock by a locator: a sealed route the fabric
-// issues, opaque to the client. Each of these verbs runs on its own
-// short-lived stream, and the edge authorizes it before routing it:
+// issues, opaque to the client. Each of these verbs opens its own stream,
+// and the edge authorizes the verb before routing it. SendEvent and
+// OpenLane finish their stream once the edge has replied; a successful
+// OpenRPC keeps its stream as the RPC's byte pipe:
 //
 //	SendEvent  one payload, best-effort; the target receives it from
 //	           AcceptEvent

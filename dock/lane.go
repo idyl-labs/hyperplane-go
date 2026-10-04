@@ -24,7 +24,7 @@ import (
 
 	"github.com/idyl-labs/hyperplane-go/generation"
 	"github.com/idyl-labs/hyperplane-go/wire"
-	mpb "github.com/idyl-labs/hyperplane-go/wire/commonv2"
+	pb "github.com/idyl-labs/hyperplane-go/wire/commonv2"
 	dpb "github.com/idyl-labs/hyperplane-go/wire/deliveryv2"
 	dockpb "github.com/idyl-labs/hyperplane-go/wire/dockv2"
 )
@@ -64,7 +64,7 @@ type LaneTarget struct {
 	Locator           []byte
 	ExpectedGen       *generation.DockGen
 	ExpectedPrincipal string
-	ExpectedKind      mpb.EndpointKind
+	ExpectedKind      pb.EndpointKind
 }
 
 // LaneTargetConfirm reports the generation and principal actually
@@ -262,7 +262,10 @@ func (s *LaneStream) Abort() {
 // A class set that includes wire.LaneClassFlow is refused locally, with
 // NAK_CODE_ADAPTER_MISMATCH, on a dock that uses the fallback transport,
 // which has no datagrams.
-func (d *Dock) OpenLane(ctx context.Context, targets []LaneTarget, classes uint64, metadata []byte) (*Lane, []LaneTargetConfirm, error) {
+//
+// If ctx ends before the lane is established, OpenLane returns promptly
+// with an error that matches ctx.Err().
+func (d *Dock) OpenLane(ctx context.Context, targets []LaneTarget, classes uint64, metadata []byte) (_ *Lane, _ []LaneTargetConfirm, err error) {
 	if d.control == nil {
 		return nil, nil, errors.New("dock: lanes need an admitted dock (use Open)")
 	}
@@ -291,12 +294,15 @@ func (d *Dock) OpenLane(ctx context.Context, targets []LaneTarget, classes uint6
 		pbTargets[i] = pt
 	}
 
-	s, err := d.openDelivery(ctx)
+	s, w, err := d.openDelivery(ctx)
 	if err != nil {
 		return nil, nil, err
 	}
 	// The reply ends the one-shot exchange on every path.
-	defer FinishStream(s)
+	defer func() {
+		FinishStream(s)
+		releaseDelivery(ctx, w, &err)
+	}()
 	if err := wire.WriteFrame(s, &dpb.RequesterToEdge{Msg: &dpb.RequesterToEdge_OpenLane{
 		OpenLane: &dpb.OpenLane{Targets: pbTargets, LaneClass: classes, Metadata: metadata},
 	}}); err != nil {
@@ -328,7 +334,7 @@ func (d *Dock) OpenLane(ctx context.Context, targets []LaneTarget, classes uint6
 		}
 		id := m.LaneOpened.GetLaneId()
 		if id == 0 {
-			return nil, confirms, errors.New("dock: LaneOpened named no lane_id for a requester↔target lane")
+			return nil, confirms, errors.New("dock: LaneOpened named no lane id for a lane with this dock")
 		}
 		// LaneOpened establishes the lane; this dock's own LaneAttached may
 		// still be in flight on the control stream.

@@ -405,7 +405,7 @@ func FuzzInboundDatagram(f *testing.F) {
 // FuzzDeliveryReply feeds arbitrary bytes as the edge's reply to SendEvent
 // and to OpenRPC. The contract: SendEvent succeeds only on an Ack and
 // returns a NakError only on a Nak; OpenRPC succeeds only on RpcOpened and
-// otherwise releases its stream; SendEvent always closes its stream.
+// otherwise finishes its stream; SendEvent always closes its stream.
 func FuzzDeliveryReply(f *testing.F) {
 	for _, m := range []*dpb.EdgeToRequester{
 		{Msg: &dpb.EdgeToRequester_Ack{Ack: &dpb.Ack{}}},
@@ -452,8 +452,8 @@ func FuzzDeliveryReply(f *testing.F) {
 			}
 			return
 		}
-		if err == nil || rpc != nil || !rpcStream.released() {
-			t.Fatalf("OpenRPC on reply %x = %v, %v, released=%v", raw, rpc, err, rpcStream.released())
+		if err == nil || rpc != nil || !rpcStream.finished() {
+			t.Fatalf("OpenRPC on reply %x = %v, %v, finished=%v", raw, rpc, err, rpcStream.finished())
 		}
 	})
 }

@@ -1045,3 +1045,124 @@ func TestRequesterVerbsOverBothTransports(t *testing.T) {
 		})
 	}
 }
+
+// runVerb runs one delivery verb and returns its error.
+func runVerb(ctx context.Context, d *Dock, verb string) error {
+	switch verb {
+	case "SendEvent":
+		return d.SendEvent(ctx, []byte("loc"), nil)
+	case "OpenRPC":
+		_, err := d.OpenRPC(ctx, []byte("loc"), nil)
+		return err
+	default:
+		_, _, err := d.OpenLane(ctx, []LaneTarget{{Locator: []byte("loc")}}, wire.LaneClassStream, nil)
+		return err
+	}
+}
+
+// awaitReset waits, with a bound, for the dock to reset st, and fails the
+// test unless the reset carries DockCodeProtocol. A stream the dock
+// abandons instead would block the edge's writes once their window fills.
+func awaitReset(t *testing.T, st edgeBidi) {
+	t.Helper()
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	type result struct {
+		code uint64
+		err  error
+	}
+	reset := make(chan result, 1)
+	go func() {
+		code, err := writeUntilReset(ctx, st)
+		reset <- result{code, err}
+	}()
+	select {
+	case r := <-reset:
+		if r.err != nil || r.code != wire.DockCodeProtocol {
+			t.Fatalf("the edge saw %#x, %v; want a DockCodeProtocol reset", r.code, r.err)
+		}
+	case <-time.After(5 * time.Second):
+		t.Fatal("the dock never reset the stream; the edge's writes blocked")
+	}
+}
+
+// readVerb accepts a delivery stream and reads its kind byte and verb.
+func readVerb(ctx context.Context, t *testing.T, s *edgeSession) edgeBidi {
+	t.Helper()
+	st, err := s.acceptStream(ctx)
+	if err != nil {
+		t.Fatalf("edge accept: %v", err)
+	}
+	var kind [1]byte
+	if _, err := io.ReadFull(st, kind[:]); err != nil {
+		t.Fatalf("kind byte: %v", err)
+	}
+	var verb dpb.RequesterToEdge
+	if err := wire.ReadFrame(st, &verb, 0); err != nil {
+		t.Fatalf("verb: %v", err)
+	}
+	return st
+}
+
+// Ending the context after a verb is sent, while the edge withholds its
+// reply, ends the verb promptly on both transports: it returns an error
+// matching context.Canceled, and the edge observes the stream reset with
+// DockCodeProtocol.
+func TestRequesterVerbsReturnOnCancel(t *testing.T) {
+	for _, transport := range edgeTransports {
+		for _, verb := range []string{"SendEvent", "OpenRPC", "OpenLane"} {
+			t.Run(transport+"/"+verb, func(t *testing.T) {
+				edge := newScriptedEdge(t, newTestPKI(t), transport, welcome(20_000))
+				d, s := edge.open(edge.config())
+				ctx, cancel := context.WithCancel(context.Background())
+				t.Cleanup(cancel)
+				done := make(chan error, 1)
+				go func() { done <- runVerb(ctx, d, verb) }()
+
+				st := readVerb(laneCtx(t), t, s)
+				cancel()
+				select {
+				case err := <-done:
+					if !errors.Is(err, context.Canceled) {
+						t.Fatalf("%s = %v, want an error matching context.Canceled", verb, err)
+					}
+				case <-time.After(5 * time.Second):
+					t.Fatalf("%s did not return after its context ended", verb)
+				}
+				awaitReset(t, st)
+			})
+		}
+	}
+}
+
+// After a refusal from an edge that never finishes its direction, the
+// bounded drain resets the stream, on both transports and for both
+// SendEvent and OpenRPC, so the stream cannot stay half open.
+func TestRequesterRefusalResetsPeerThatNeverFinishes(t *testing.T) {
+	old := drainTimeout
+	drainTimeout = 100 * time.Millisecond
+	t.Cleanup(func() { drainTimeout = old })
+	for _, transport := range edgeTransports {
+		for _, verb := range []string{"SendEvent", "OpenRPC"} {
+			t.Run(transport+"/"+verb, func(t *testing.T) {
+				edge := newScriptedEdge(t, newTestPKI(t), transport, welcome(20_000))
+				d, s := edge.open(edge.config())
+				ctx := laneCtx(t)
+				done := make(chan error, 1)
+				go func() { done <- runVerb(ctx, d, verb) }()
+
+				st := readVerb(ctx, t, s)
+				if err := wire.WriteFrame(st, &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_Nak{
+					Nak: &dpb.Nak{Code: dpb.NakCode_NAK_CODE_TARGET_GONE},
+				}}); err != nil {
+					t.Fatalf("reply: %v", err)
+				}
+				var nak NakError
+				if err := <-done; !errors.As(err, &nak) || nak.Code != dpb.NakCode_NAK_CODE_TARGET_GONE {
+					t.Fatalf("%s = %v, want NakError NAK_CODE_TARGET_GONE", verb, err)
+				}
+				awaitReset(t, st)
+			})
+		}
+	}
+}

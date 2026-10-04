@@ -60,6 +60,13 @@ func edgeReplyFrame(tb testing.TB, msg *dpb.EdgeToRequester) []byte {
 	return buf.Bytes()
 }
 
+// finished reports whether s was finished as a delivery stream must be:
+// its write direction closed and its receive direction read to the end,
+// or reset.
+func (s *recordingStream) finished() bool {
+	return (s.closed && s.serve.Len() == 0) || (s.cancelRead && s.cancelWrite)
+}
+
 func ackReply() *dpb.EdgeToRequester {
 	return &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_Ack{Ack: &dpb.Ack{}}}
 }
@@ -70,7 +77,8 @@ func TestOpenRPCReleasesStreamOnNak(t *testing.T) {
 	reply := edgeReplyFrame(t, &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_Nak{
 		Nak: &dpb.Nak{Code: dpb.NakCode_NAK_CODE_LOCATOR_INVALID},
 	}})
-	s := &recordingStream{serve: bytes.NewReader(reply), err: io.EOF}
+	// Bytes after the reply must be drained for the stream to finish.
+	s := &recordingStream{serve: bytes.NewReader(append(reply, "tail"...)), err: io.EOF}
 	d := &Dock{conn: &rpcConn{s: s}}
 
 	_, err := d.OpenRPC(context.Background(), []byte("loc"), nil)
@@ -78,22 +86,22 @@ func TestOpenRPCReleasesStreamOnNak(t *testing.T) {
 	if !errors.As(err, &nak) || nak.Code != dpb.NakCode_NAK_CODE_LOCATOR_INVALID {
 		t.Fatalf("OpenRPC error = %v, want NakError NAK_CODE_LOCATOR_INVALID", err)
 	}
-	if !s.released() {
-		t.Fatal("OpenRPC leaked the stream on a Nak")
+	if !s.finished() {
+		t.Fatal("OpenRPC did not finish the stream on a Nak")
 	}
 }
 
 // A reply OpenRPC cannot use is a failure too, and releases the stream.
 func TestOpenRPCReleasesStreamOnUnexpectedReply(t *testing.T) {
 	reply := edgeReplyFrame(t, &dpb.EdgeToRequester{}) // no reply arm set
-	s := &recordingStream{serve: bytes.NewReader(reply), err: io.EOF}
+	s := &recordingStream{serve: bytes.NewReader(append(reply, "tail"...)), err: io.EOF}
 	d := &Dock{conn: &rpcConn{s: s}}
 
 	if _, err := d.OpenRPC(context.Background(), []byte("loc"), nil); err == nil {
 		t.Fatal("OpenRPC with an unexpected reply succeeded")
 	}
-	if !s.released() {
-		t.Fatal("OpenRPC leaked the stream on an unexpected reply")
+	if !s.finished() {
+		t.Fatal("OpenRPC did not finish the stream on an unexpected reply")
 	}
 }
 
@@ -483,5 +491,90 @@ func TestOpenLaneRequiresAdmittedDock(t *testing.T) {
 	}
 	if got := conn.opens.Load(); got != 0 {
 		t.Fatalf("opened %d delivery streams, want 0", got)
+	}
+}
+
+// idleAcceptConn is rpcConn for a dock whose inbound dispatch runs: it
+// accepts nothing until the test ends.
+type idleAcceptConn struct {
+	rpcConn
+	ctx context.Context
+}
+
+func (c *idleAcceptConn) AcceptStream(context.Context) (transportStream, error) {
+	<-c.ctx.Done()
+	return nil, c.ctx.Err()
+}
+
+func (c *idleAcceptConn) Context() context.Context { return c.ctx }
+
+// kindWriteFailure is a stream whose first write fails.
+type kindWriteFailure struct{ recordingStream }
+
+func (*kindWriteFailure) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+// When the kind byte cannot be written to a newly opened delivery stream,
+// the stream is reset in both directions rather than abandoned, and the
+// write error is returned.
+func TestDeliveryKindWriteFailureResetsStream(t *testing.T) {
+	for _, verb := range []string{"SendEvent", "OpenRPC", "OpenLane"} {
+		t.Run(verb, func(t *testing.T) {
+			s := &kindWriteFailure{recordingStream{serve: bytes.NewReader(nil), err: io.EOF}}
+			ctx, cancel := context.WithCancel(context.Background())
+			t.Cleanup(cancel)
+			d := &Dock{conn: &idleAcceptConn{rpcConn{s: s}, ctx}, control: newBytesStream(nil), transport: wire.TransportQUIC}
+			var err error
+			switch verb {
+			case "SendEvent":
+				err = d.SendEvent(context.Background(), []byte("loc"), nil)
+			case "OpenRPC":
+				_, err = d.OpenRPC(context.Background(), []byte("loc"), nil)
+			case "OpenLane":
+				_, _, err = d.OpenLane(context.Background(), []LaneTarget{{Locator: []byte("loc")}}, wire.LaneClassStream, nil)
+			}
+			if !errors.Is(err, io.ErrClosedPipe) {
+				t.Fatalf("%s = %v, want the write error", verb, err)
+			}
+			if !s.cancelRead || !s.cancelWrite {
+				t.Fatalf("%s abandoned the stream: cancelRead=%v cancelWrite=%v", verb, s.cancelRead, s.cancelWrite)
+			}
+		})
+	}
+}
+
+// A context that ends while the RPC is being confirmed wins: the stream is
+// reset, OpenRPC returns the context's error, and no RPC is handed out.
+func TestOpenRPCCanceledAtConfirmationReturnsNoRPC(t *testing.T) {
+	reply := edgeReplyFrame(t, &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_RpcOpened{RpcOpened: &dpb.RpcOpened{}}})
+	s := &recordingStream{serve: bytes.NewReader(reply), err: io.EOF}
+	d := &Dock{conn: &rpcConn{s: s}}
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	rpc, err := d.OpenRPC(ctx, []byte("loc"), nil)
+	if rpc != nil || !errors.Is(err, context.Canceled) {
+		t.Fatalf("OpenRPC = %v, %v; want no RPC and context.Canceled", rpc, err)
+	}
+	if !s.cancelRead || !s.cancelWrite {
+		t.Fatal("the canceled RPC stream was not reset")
+	}
+}
+
+// Once OpenRPC returns an RPC, ending its context no longer affects the
+// stream.
+func TestOpenRPCIgnoresCancelAfterHandoff(t *testing.T) {
+	reply := edgeReplyFrame(t, &dpb.EdgeToRequester{Msg: &dpb.EdgeToRequester_RpcOpened{RpcOpened: &dpb.RpcOpened{}}})
+	s := &recordingStream{serve: bytes.NewReader(reply), err: io.EOF}
+	d := &Dock{conn: &rpcConn{s: s}}
+	ctx, cancel := context.WithCancel(context.Background())
+
+	rpc, err := d.OpenRPC(ctx, []byte("loc"), nil)
+	if err != nil || rpc == nil {
+		t.Fatalf("OpenRPC = %v, %v", rpc, err)
+	}
+	cancel()
+	time.Sleep(10 * time.Millisecond) // a late reset would land in this window
+	if s.released() {
+		t.Fatal("ending the context after the handoff touched the RPC's stream")
 	}
 }

@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"sync"
 	"time"
 
 	"github.com/idyl-labs/hyperplane-go/wire"
@@ -57,34 +58,86 @@ func (e NakError) Error() string {
 	return fmt.Sprintf("dock: delivery refused: %s", e.Code)
 }
 
-// openDelivery opens a one-shot delivery stream and writes its kind byte.
-// The context's deadline, if any, also bounds reading the reply.
-func (d *Dock) openDelivery(ctx context.Context) (transportStream, error) {
+// deliveryWatch resets a delivery stream in both directions when the
+// verb's context ends, so a verb waiting on the edge returns promptly
+// instead of waiting for the stream or the dock to end.
+type deliveryWatch struct {
+	stop     func() bool
+	reset    chan struct{}
+	once     sync.Once
+	canceled bool
+}
+
+func watchDelivery(ctx context.Context, s transportStream) *deliveryWatch {
+	w := &deliveryWatch{reset: make(chan struct{})}
+	w.stop = context.AfterFunc(ctx, func() {
+		defer close(w.reset)
+		s.CancelRead(wire.DockCodeProtocol)
+		s.CancelWrite(wire.DockCodeProtocol)
+	})
+	return w
+}
+
+// release ends the watch and reports whether the context ended first.
+// Once it returns, the stream is either reset already or never will be by
+// the watch. It is safe to call more than once.
+func (w *deliveryWatch) release() bool {
+	w.once.Do(func() {
+		if !w.stop() {
+			<-w.reset
+			w.canceled = true
+		}
+	})
+	return w.canceled
+}
+
+// releaseDelivery ends the watch after the stream is finished, and adds
+// the context's error to a verb error caused by the context ending, so
+// callers can classify it with errors.Is.
+func releaseDelivery(ctx context.Context, w *deliveryWatch, err *error) {
+	if w.release() && *err != nil && !errors.Is(*err, ctx.Err()) {
+		*err = errors.Join(*err, ctx.Err())
+	}
+}
+
+// openDelivery opens a one-shot delivery stream, watched by ctx, and
+// writes its kind byte. The context's deadline, if any, also bounds
+// reading the reply. If the kind byte cannot be written, the stream is
+// reset in both directions.
+func (d *Dock) openDelivery(ctx context.Context) (transportStream, *deliveryWatch, error) {
 	s, err := d.conn.OpenStreamSync(ctx)
 	if err != nil {
-		return nil, err
+		return nil, nil, err
 	}
+	w := watchDelivery(ctx, s)
 	if _, err := s.Write([]byte{wire.StreamKindDelivery}); err != nil {
-		return nil, err
+		s.CancelRead(wire.DockCodeProtocol)
+		s.CancelWrite(wire.DockCodeProtocol)
+		releaseDelivery(ctx, w, &err)
+		return nil, nil, err
 	}
 	if deadline, ok := ctx.Deadline(); ok {
 		_ = s.SetReadDeadline(deadline)
 	}
-	return s, nil
+	return s, w, nil
 }
 
 // SendEvent delivers one payload to the dock that locator names. The
 // locator is sealed by the fabric and opaque to the caller. SendEvent is
 // one-way and best-effort: a nil error means the edge acknowledged that
 // the payload entered the target dock's stream, not that the application
-// handled it. A refusal is a NakError. The delivery stream is finished
-// with FinishStream on every path.
-func (d *Dock) SendEvent(ctx context.Context, locator, payload []byte) error {
-	s, err := d.openDelivery(ctx)
+// handled it. A refusal is a NakError. If ctx ends before the edge
+// replies, SendEvent returns promptly with an error that matches
+// ctx.Err(). The delivery stream is finished on every path.
+func (d *Dock) SendEvent(ctx context.Context, locator, payload []byte) (err error) {
+	s, w, err := d.openDelivery(ctx)
 	if err != nil {
 		return err
 	}
-	defer FinishStream(s)
+	defer func() {
+		FinishStream(s)
+		releaseDelivery(ctx, w, &err)
+	}()
 	if err := wire.WriteFrame(s, &dpb.RequesterToEdge{Msg: &dpb.RequesterToEdge_SendEvent{
 		SendEvent: &dpb.SendEvent{Locator: locator, Payload: payload},
 	}}); err != nil {
@@ -106,17 +159,19 @@ func (d *Dock) SendEvent(ctx context.Context, locator, payload []byte) error {
 // OpenRPC opens an RPC to the dock that locator names: a bidirectional
 // byte pipe whose far end the target dock receives from AcceptRPC, with
 // metadata, which the fabric does not interpret. A refusal is a NakError.
-// On any error the stream is released; on success it belongs to the
-// returned RPC.
-func (d *Dock) OpenRPC(ctx context.Context, locator, metadata []byte) (*RPC, error) {
-	s, err := d.openDelivery(ctx)
+// If ctx ends before the RPC is open, OpenRPC returns promptly with an
+// error that matches ctx.Err(). On any error the stream is finished; on
+// success it belongs to the returned RPC, and ctx no longer affects it.
+func (d *Dock) OpenRPC(ctx context.Context, locator, metadata []byte) (_ *RPC, err error) {
+	s, w, err := d.openDelivery(ctx)
 	if err != nil {
 		return nil, err
 	}
 	handedOff := false
 	defer func() {
 		if !handedOff {
-			_ = s.Close()
+			FinishStream(s)
+			releaseDelivery(ctx, w, &err)
 		}
 	}()
 	if err := wire.WriteFrame(s, &dpb.RequesterToEdge{Msg: &dpb.RequesterToEdge_OpenRpc{
@@ -130,6 +185,10 @@ func (d *Dock) OpenRPC(ctx context.Context, locator, metadata []byte) (*RPC, err
 	}
 	switch m := reply.GetMsg().(type) {
 	case *dpb.EdgeToRequester_RpcOpened:
+		if w.release() {
+			// ctx ended as the RPC opened: the stream is already reset.
+			return nil, ctx.Err()
+		}
 		_ = s.SetReadDeadline(time.Time{})
 		handedOff = true
 		return &RPC{stream: s}, nil
