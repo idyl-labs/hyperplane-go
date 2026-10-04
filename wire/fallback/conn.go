@@ -46,6 +46,11 @@ type Conn struct {
 	nextSID    uint32 // next local stream id
 	maxPeerSID uint32 // highest peer-opened id seen (monotonicity check)
 	dead       bool
+	// closeCause is the cause CloseWithError records before it writes the
+	// CLOSE frame. The peer may close the connection in answer before
+	// CloseWithError finishes, and the close must still record this side's
+	// own cause rather than the resulting read error.
+	closeCause error
 
 	acceptBidi chan *Stream
 	acceptUni  chan *Stream
@@ -92,12 +97,21 @@ func (c *Conn) Context() context.Context { return c.ctx }
 
 // CloseWithError sends a CLOSE frame carrying a dock application code and
 // reason, then closes the connection, as a QUIC application close does.
-// The send is best effort and CloseWithError always returns nil.
+// The connection's close cause is a local ConnError with that code and
+// reason, even if the peer closes the connection in answer before
+// CloseWithError returns. The send is best effort and CloseWithError
+// always returns nil.
 func (c *Conn) CloseWithError(code uint64, reason string) error {
 	payload := binary.BigEndian.AppendUint64(nil, code)
 	payload = append(payload, reason...)
+	cause := &ConnError{Code: code, Reason: reason}
+	c.mu.Lock()
+	if c.closeCause == nil {
+		c.closeCause = cause
+	}
+	c.mu.Unlock()
 	_ = c.writeFrame(typeClose, 0, payload)
-	c.fail(&ConnError{Code: code, Reason: reason})
+	c.fail(cause)
 	return nil
 }
 
@@ -203,6 +217,9 @@ func (c *Conn) fail(cause error) {
 		return
 	}
 	c.dead = true
+	if c.closeCause != nil {
+		cause = c.closeCause
+	}
 	streams := make([]*Stream, 0, len(c.streams))
 	for _, s := range c.streams {
 		streams = append(streams, s)
