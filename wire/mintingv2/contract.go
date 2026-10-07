@@ -73,8 +73,9 @@ func ValidateMintPodSvidRequest(request *MintPodSvidRequest) error {
 
 // ValidateMintSessionSvidRequest checks a session mint request: one
 // bounded CSR, the session and pod binding facts, an expiry, a known
-// session kind and leg, and a grant_id that is present on the proxy leg
-// and absent on the client leg.
+// session kind and leg, a grant_id that is present on the proxy leg and
+// absent on the client leg, and a micropod_sequence that is zero or, for
+// an exec or shell session only, at most admissionv3.MaxMicropodSequence.
 func ValidateMintSessionSvidRequest(request *MintSessionSvidRequest) error {
 	if request == nil || len(request.GetCsrDer()) == 0 || len(request.GetCsrDer()) > MaxCSRDERBytes ||
 		!validText(request.GetSessionId(), admissionv3.MaxIdentifierBytes) ||
@@ -100,6 +101,14 @@ func ValidateMintSessionSvidRequest(request *MintSessionSvidRequest) error {
 		}
 	default:
 		return fmt.Errorf("mintingv2: unknown session leg %d", request.GetSessionLeg())
+	}
+	if sequence := request.GetMicropodSequence(); sequence != 0 {
+		if sequence > admissionv3.MaxMicropodSequence {
+			return fmt.Errorf("mintingv2: micropod sequence exceeds %d", uint64(admissionv3.MaxMicropodSequence))
+		}
+		if request.GetSessionKind() != commonv2.SessionKind_SESSION_KIND_EXEC && request.GetSessionKind() != commonv2.SessionKind_SESSION_KIND_SHELL {
+			return fmt.Errorf("mintingv2: micropod session kind %d", request.GetSessionKind())
+		}
 	}
 	return rejectUnknown(request)
 }

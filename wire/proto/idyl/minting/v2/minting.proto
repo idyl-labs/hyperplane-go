@@ -51,6 +51,14 @@ message MintSessionSvidRequest {
   int64 assignment_generation = 6;
   string grant_id = 7; // required only for proxy leg
   uint64 expires_at_unix_s = 8;
+  // The sequence number of a Micropod within the Pod, when the session
+  // targets one; 0 when the session targets the Pod itself. A positive
+  // value is at most 2^53-1 and is valid only for exec and shell sessions,
+  // on either leg. The resulting lease and session principal carry the same
+  // value. Like every other field, it is part of the request's canonical
+  // encoding, so two requests that differ only in it are different
+  // requests.
+  uint64 micropod_sequence = 9;
 }
 
 // PodCredentialGeneration is a successful Pod mint.

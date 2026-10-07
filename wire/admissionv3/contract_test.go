@@ -118,6 +118,9 @@ func TestNumericBounds(t *testing.T) {
 			t.Errorf("%s = %d, want %d", row.name, row.got, row.want)
 		}
 	}
+	if got, want := uint64(admissionv3.MaxMicropodSequence), uint64(9_007_199_254_740_991); got != want {
+		t.Errorf("MaxMicropodSequence = %d, want %d", got, want)
+	}
 	for _, row := range []struct {
 		name      string
 		got, want time.Duration

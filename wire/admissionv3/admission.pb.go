@@ -233,9 +233,16 @@ type ZoneAdmissionLeasePayload struct {
 	IssuedAtUnixS        uint64        `protobuf:"varint,28,opt,name=issued_at_unix_s,json=issuedAtUnixS,proto3" json:"issued_at_unix_s,omitempty"`                                  // not_before + the fixed 60-second backdate
 	// Share leases only: must equal the share segment of the authenticated
 	// principal.
-	ShareId       string `protobuf:"bytes,30,opt,name=share_id,json=shareId,proto3" json:"share_id,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	ShareId string `protobuf:"bytes,30,opt,name=share_id,json=shareId,proto3" json:"share_id,omitempty"`
+	// Session leases only: the sequence number of a Micropod within the Pod
+	// when the session targets one, and 0 when it targets the Pod itself. A
+	// positive value selects the Micropod session principal, which carries
+	// the value in its micropod segment; it is at most 2^53-1 and is valid
+	// only for exec and shell sessions. Zero selects the ordinary session
+	// principal. Every other kind leaves it 0.
+	MicropodSequence uint64 `protobuf:"varint,31,opt,name=micropod_sequence,json=micropodSequence,proto3" json:"micropod_sequence,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *ZoneAdmissionLeasePayload) Reset() {
@@ -471,6 +478,13 @@ func (x *ZoneAdmissionLeasePayload) GetShareId() string {
 	return ""
 }
 
+func (x *ZoneAdmissionLeasePayload) GetMicropodSequence() uint64 {
+	if x != nil {
+		return x.MicropodSequence
+	}
+	return 0
+}
+
 // DockProofInput is the exact canonical byte sequence the endpoint signs
 // with its SVID key. The proof signature domain is applied outside this
 // message. The input repeats every fact of the dock opening except the proof
@@ -579,7 +593,7 @@ const file_idyl_admission_v3_admission_proto_rawDesc = "" +
 	"\apayload\x18\x02 \x01(\fR\apayload\x12\x1c\n" +
 	"\tsignature\x18\x03 \x01(\fR\tsignature\x12\"\n" +
 	"\rsigner_key_id\x18\x04 \x01(\fR\vsignerKeyId\x12*\n" +
-	"\x11signer_cert_chain\x18\x05 \x03(\fR\x0fsignerCertChain\"\xcf\t\n" +
+	"\x11signer_cert_chain\x18\x05 \x03(\fR\x0fsignerCertChain\"\xfc\t\n" +
 	"\x19ZoneAdmissionLeasePayload\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12\x19\n" +
 	"\blease_id\x18\x02 \x01(\fR\aleaseId\x12\x12\n" +
@@ -615,7 +629,8 @@ const file_idyl_admission_v3_admission_proto_rawDesc = "" +
 	"\x10not_after_unix_s\x18\x1a \x01(\x04R\rnotAfterUnixS\x12G\n" +
 	"\x0enode_admission\x18\x1b \x01(\x0e2 .idyl.admission.v3.NodeAdmissionR\rnodeAdmission\x12'\n" +
 	"\x10issued_at_unix_s\x18\x1c \x01(\x04R\rissuedAtUnixS\x12\x19\n" +
-	"\bshare_id\x18\x1e \x01(\tR\ashareIdJ\x04\b\x1d\x10\x1eR\x0eworkload_scope\"\xba\x02\n" +
+	"\bshare_id\x18\x1e \x01(\tR\ashareId\x12+\n" +
+	"\x11micropod_sequence\x18\x1f \x01(\x04R\x10micropodSequenceJ\x04\b\x1d\x10\x1eR\x0eworkload_scope\"\xba\x02\n" +
 	"\x0eDockProofInput\x12\x18\n" +
 	"\aversion\x18\x01 \x01(\rR\aversion\x12#\n" +
 	"\rdock_contract\x18\x02 \x01(\tR\fdockContract\x12%\n" +
