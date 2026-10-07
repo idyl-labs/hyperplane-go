@@ -30,6 +30,7 @@
 //	node:    /subnet/{subnet}/node/{nodeID}
 //	pod:     /subnet/{subnet}/account/{account}/namespace/{namespaceID}/workload/{workloadID}/pod-name/{podName}/pod/{podID}
 //	session: /subnet/{subnet}/account/{account}/namespace/{namespaceID}/workload/{workloadID}/pod/{podID}/pod-instance/{podID}.{generation}/session/{kind}/{sessionID}/leg/{leg}
+//	session: /subnet/{subnet}/account/{account}/namespace/{namespaceID}/workload/{workloadID}/pod/{podID}/pod-instance/{podID}.{generation}/micropod/{sequence}/session/{kind}/{sessionID}/leg/{leg}
 //	share:   /share/{shareID}
 //
 // Every keyword segment is compared byte for byte at its own index, and
@@ -42,6 +43,15 @@
 // {podName} is diagnostic, must be present, and is never authority on its
 // own. A share lease names the data plane and carries no subnet, account,
 // namespace, workload, node or pod fact.
+//
+// A session lease selects one of the two session paths by its
+// micropod_sequence. Zero selects the first, seventeen-segment path: the
+// session targets the Pod itself. A positive value selects the second,
+// nineteen-segment path, a session that targets one Micropod within the
+// Pod, and {sequence} is that value in decimal, with no sign and no leading
+// zero. Only exec and shell sessions may target a Micropod. A principal of
+// one path never matches a lease that selects the other, and no other
+// spelling of the sequence matches.
 package admissionv3
 
 import "time"
@@ -106,6 +116,11 @@ const (
 	MaxPrincipalBytes     = 1024
 	MaxIdentifierBytes    = 255
 	MaxPolicyProfileBytes = 64
+
+	// MaxMicropodSequence is the largest Micropod sequence number a session
+	// lease or mint request may carry, 2^53-1, so that every sequence is
+	// exact wherever it is carried as a JSON number.
+	MaxMicropodSequence = 1<<53 - 1
 
 	// MaxAdmissionSignerLifetime caps the signer leaf's encoded validity
 	// interval. Issuance policy requests shorter-lived signers; the cap is

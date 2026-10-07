@@ -117,6 +117,14 @@ message ZoneAdmissionLeasePayload {
   // Share leases only: must equal the share segment of the authenticated
   // principal.
   string share_id = 30;
+
+  // Session leases only: the sequence number of a Micropod within the Pod
+  // when the session targets one, and 0 when it targets the Pod itself. A
+  // positive value selects the Micropod session principal, which carries
+  // the value in its micropod segment; it is at most 2^53-1 and is valid
+  // only for exec and shell sessions. Zero selects the ordinary session
+  // principal. Every other kind leaves it 0.
+  uint64 micropod_sequence = 31;
 }
 
 // DockProofInput is the exact canonical byte sequence the endpoint signs

@@ -44,7 +44,10 @@ const (
 	// identifies the path shape and is checked before any value is read.
 	podPrincipalSegments     = 12
 	sessionPrincipalSegments = 17
-	sharePrincipalSegments   = 2
+	// micropodSessionPrincipalSegments is the session path with the
+	// micropod keyword and sequence inserted after the pod incarnation.
+	micropodSessionPrincipalSegments = 19
+	sharePrincipalSegments           = 2
 )
 
 // Admission refusal classes. The lease, payload, binding and dock proof
@@ -393,7 +396,7 @@ func validateNodeLeaseProfile(p *apb.ZoneAdmissionLeasePayload, principal admiss
 	if p.GetAccountId() != "" || p.GetNamespaceId() != "" || p.GetWorkloadId() != "" ||
 		p.GetPodId() != "" || p.GetPodInstanceId() != "" || p.GetAssignmentGeneration() != 0 || p.GetSessionId() != "" ||
 		p.GetSessionKind() != mpb.SessionKind_SESSION_KIND_UNSPECIFIED || p.GetSessionLeg() != mpb.SessionLeg_SESSION_LEG_UNSPECIFIED || p.GetGrantId() != "" ||
-		p.GetShareId() != "" {
+		p.GetMicropodSequence() != 0 || p.GetShareId() != "" {
 		return fmt.Errorf("%w: node lease carries fields from another kind", ErrAdmissionMalformed)
 	}
 	if len(principal.segments) != 4 || principal.segments[0] != "subnet" || principal.segments[1] != p.GetSubnetId() ||
@@ -430,7 +433,7 @@ func validatePodLeaseProfile(p *apb.ZoneAdmissionLeasePayload, principal admissi
 	}
 	if p.GetNodeAdmission() != apb.NodeAdmission_NODE_ADMISSION_UNSPECIFIED || p.GetSessionId() != "" ||
 		p.GetSessionKind() != mpb.SessionKind_SESSION_KIND_UNSPECIFIED || p.GetSessionLeg() != mpb.SessionLeg_SESSION_LEG_UNSPECIFIED || p.GetGrantId() != "" ||
-		p.GetShareId() != "" {
+		p.GetMicropodSequence() != 0 || p.GetShareId() != "" {
 		return fmt.Errorf("%w: pod lease carries fields from another kind", ErrAdmissionMalformed)
 	}
 	s := principal.segments
@@ -447,6 +450,13 @@ func validatePodLeaseProfile(p *apb.ZoneAdmissionLeasePayload, principal admissi
 
 // validateSessionLeaseProfile enforces the session leg. Account and stable
 // Namespace ID are required and byte-match their principal segments.
+//
+// micropod_sequence selects the principal path: zero requires the
+// seventeen-segment session path, and a positive sequence requires the
+// nineteen-segment path whose micropod segment is the sequence's unique
+// decimal spelling. The segment count is fixed by the lease before any
+// segment is read, so a principal of the other path, or any other spelling
+// of the sequence, is refused rather than translated.
 func validateSessionLeaseProfile(p *apb.ZoneAdmissionLeasePayload, principal admissionPrincipal) error {
 	for name, value := range map[string]string{
 		"subnet_id": p.GetSubnetId(), "owner_scope": p.GetOwnerScope(), "account_id": p.GetAccountId(),
@@ -480,15 +490,35 @@ func validateSessionLeaseProfile(p *apb.ZoneAdmissionLeasePayload, principal adm
 	} else {
 		return fmt.Errorf("%w: unknown session leg %d", ErrAdmissionMalformed, p.GetSessionLeg())
 	}
+	sequence := p.GetMicropodSequence()
+	wantSegments := sessionPrincipalSegments
+	if sequence != 0 {
+		if sequence > apb.MaxMicropodSequence {
+			return fmt.Errorf("%w: micropod sequence exceeds %d", ErrAdmissionMalformed, uint64(apb.MaxMicropodSequence))
+		}
+		if p.GetSessionKind() != mpb.SessionKind_SESSION_KIND_EXEC && p.GetSessionKind() != mpb.SessionKind_SESSION_KIND_SHELL {
+			return fmt.Errorf("%w: micropod session kind %d", ErrAdmissionMalformed, p.GetSessionKind())
+		}
+		wantSegments = micropodSessionPrincipalSegments
+	}
 	s := principal.segments
 	kind := strings.ToLower(strings.TrimPrefix(p.GetSessionKind().String(), "SESSION_KIND_"))
 	leg := strings.ToLower(strings.TrimPrefix(p.GetSessionLeg().String(), "SESSION_LEG_"))
 	pathInstance := p.GetPodId() + "." + strconv.FormatUint(p.GetAssignmentGeneration(), 10)
-	if len(s) != sessionPrincipalSegments || s[0] != "subnet" || s[1] != p.GetSubnetId() ||
+	if len(s) != wantSegments || s[0] != "subnet" || s[1] != p.GetSubnetId() ||
 		s[2] != "account" || s[3] != p.GetAccountId() || s[4] != "namespace" || s[5] != p.GetNamespaceId() ||
 		s[6] != "workload" || s[7] != p.GetWorkloadId() || s[8] != "pod" || s[9] != p.GetPodId() ||
-		s[10] != "pod-instance" || s[11] != pathInstance || s[12] != "session" || s[13] != kind ||
-		s[14] != p.GetSessionId() || s[15] != "leg" || s[16] != leg {
+		s[10] != "pod-instance" || s[11] != pathInstance {
+		return fmt.Errorf("%w: session principal does not match lease", ErrAdmissionMalformed)
+	}
+	s = s[12:]
+	if sequence != 0 {
+		if s[0] != "micropod" || s[1] != strconv.FormatUint(sequence, 10) {
+			return fmt.Errorf("%w: session principal does not match lease", ErrAdmissionMalformed)
+		}
+		s = s[2:]
+	}
+	if s[0] != "session" || s[1] != kind || s[2] != p.GetSessionId() || s[3] != "leg" || s[4] != leg {
 		return fmt.Errorf("%w: session principal does not match lease", ErrAdmissionMalformed)
 	}
 	return nil
@@ -511,7 +541,7 @@ func validateShareLeaseProfile(p *apb.ZoneAdmissionLeasePayload, principal admis
 		p.GetNodeId() != "" || p.GetPodId() != "" || p.GetPodInstanceId() != "" || p.GetAssignmentGeneration() != 0 ||
 		p.GetSessionId() != "" || p.GetSessionKind() != mpb.SessionKind_SESSION_KIND_UNSPECIFIED ||
 		p.GetSessionLeg() != mpb.SessionLeg_SESSION_LEG_UNSPECIFIED || p.GetGrantId() != "" ||
-		p.GetNodeAdmission() != apb.NodeAdmission_NODE_ADMISSION_UNSPECIFIED {
+		p.GetMicropodSequence() != 0 || p.GetNodeAdmission() != apb.NodeAdmission_NODE_ADMISSION_UNSPECIFIED {
 		return fmt.Errorf("%w: share lease carries fields from another kind", ErrAdmissionMalformed)
 	}
 	s := principal.segments

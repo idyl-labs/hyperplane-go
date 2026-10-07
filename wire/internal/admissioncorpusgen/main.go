@@ -149,6 +149,18 @@ func build() (*conformance.Corpus, error) {
 	if err != nil {
 		return nil, err
 	}
+	sessionPayloadBytes, err := wire.MarshalZoneAdmissionLeasePayload(sessionPayload())
+	if err != nil {
+		return nil, err
+	}
+	micropodPayloadBytes, err := wire.MarshalZoneAdmissionLeasePayload(micropodSessionPayload())
+	if err != nil {
+		return nil, err
+	}
+	micropodProxyPayloadBytes, err := wire.MarshalZoneAdmissionLeasePayload(micropodShellProxyPayload())
+	if err != nil {
+		return nil, err
+	}
 	validPod, err := dataSigner.SignLeasePayloadBytes(podPayloadBytes)
 	if err != nil {
 		return nil, err
@@ -158,6 +170,18 @@ func build() (*conformance.Corpus, error) {
 		return nil, err
 	}
 	validShare, err := dataSigner.SignLeasePayloadBytes(sharePayloadBytes)
+	if err != nil {
+		return nil, err
+	}
+	validSession, err := dataSigner.SignLeasePayloadBytes(sessionPayloadBytes)
+	if err != nil {
+		return nil, err
+	}
+	validMicropod, err := dataSigner.SignLeasePayloadBytes(micropodPayloadBytes)
+	if err != nil {
+		return nil, err
+	}
+	validMicropodProxy, err := dataSigner.SignLeasePayloadBytes(micropodProxyPayloadBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -192,6 +216,24 @@ func build() (*conformance.Corpus, error) {
 			name:        "valid-share-data-plane",
 			description: "complete share lease: two-segment principal, owner scope and share ID only",
 			envelope:    validShare, expectedURI: dataURI, bundle: bundle, now: clockUnixS,
+			wantVerdict: "valid",
+		},
+		{
+			name:        "valid-session-data-plane",
+			description: "complete exec client session lease: seventeen-segment principal, no Micropod sequence",
+			envelope:    validSession, expectedURI: dataURI, bundle: bundle, now: clockUnixS,
+			wantVerdict: "valid",
+		},
+		{
+			name:        "valid-micropod-session-exec-client",
+			description: "complete exec client session lease for Micropod 7: nineteen-segment principal whose micropod segment equals the sequence",
+			envelope:    validMicropod, expectedURI: dataURI, bundle: bundle, now: clockUnixS,
+			wantVerdict: "valid",
+		},
+		{
+			name:        "valid-micropod-session-shell-proxy",
+			description: "complete shell proxy session lease for Micropod 7, carrying its proxy grant",
+			envelope:    validMicropodProxy, expectedURI: dataURI, bundle: bundle, now: clockUnixS,
 			wantVerdict: "valid",
 		},
 		{
@@ -297,6 +339,12 @@ func build() (*conformance.Corpus, error) {
 		return nil, err
 	}
 	drafts = append(drafts, shareDrafts...)
+
+	micropodDrafts, err := micropodShapeDrafts(dataSigner, dataURI, bundle)
+	if err != nil {
+		return nil, err
+	}
+	drafts = append(drafts, micropodDrafts...)
 
 	corpus := &conformance.Corpus{
 		Contract:    apb.ZoneAdmissionLeaseContract,
@@ -415,6 +463,75 @@ func shareShapeDrafts(signer *svidtest.SignerIdentity, dataURI string, bundle []
 	return drafts, nil
 }
 
+// micropodShapeDrafts covers the Micropod session profile: the sequence
+// must be present and equal in the lease and the principal, the principal
+// spells it in exactly one decimal form at exactly one position, only exec
+// and shell sessions carry it, and no other endpoint kind carries it.
+func micropodShapeDrafts(signer *svidtest.SignerIdentity, dataURI string, bundle []*x509.Certificate) ([]draft, error) {
+	principal := func(sequence string) func(p *apb.ZoneAdmissionLeasePayload) {
+		return func(p *apb.ZoneAdmissionLeasePayload) {
+			p.Principal = micropodSessionPrincipal(sequence, "exec", "client")
+		}
+	}
+	withSequence := func(p *apb.ZoneAdmissionLeasePayload) { p.MicropodSequence = 7 }
+	rows := []struct {
+		name        string
+		description string
+		base        func() *apb.ZoneAdmissionLeasePayload
+		mutate      func(p *apb.ZoneAdmissionLeasePayload)
+	}{
+		{"micropod-sequence-principal-mismatch", "the principal names Micropod 8 and the lease Micropod 7",
+			micropodSessionPayload, principal("8")},
+		{"micropod-sequence-absent-from-lease", "a nineteen-segment principal under a lease without a sequence",
+			micropodSessionPayload, func(p *apb.ZoneAdmissionLeasePayload) { p.MicropodSequence = 0 }},
+		{"micropod-sequence-absent-from-principal", "a seventeen-segment principal under a lease with a sequence",
+			sessionPayload, withSequence},
+		{"micropod-sequence-leading-zero", "the sequence spelled with a leading zero",
+			micropodSessionPayload, principal("07")},
+		{"micropod-sequence-plus-sign", "the sequence spelled with a sign",
+			micropodSessionPayload, principal("+7")},
+		{"micropod-sequence-hexadecimal", "the sequence spelled in hexadecimal",
+			micropodSessionPayload, principal("0x7")},
+		{"micropod-sequence-zero-segment", "a micropod segment of zero under a lease without a sequence",
+			micropodSessionPayload, func(p *apb.ZoneAdmissionLeasePayload) {
+				p.MicropodSequence = 0
+				p.Principal = micropodSessionPrincipal("0", "exec", "client")
+			}},
+		{"micropod-sequence-above-maximum", "a sequence of 2^53, one above the largest",
+			micropodSessionPayload, func(p *apb.ZoneAdmissionLeasePayload) {
+				p.MicropodSequence = apb.MaxMicropodSequence + 1
+				p.Principal = micropodSessionPrincipal("9007199254740992", "exec", "client")
+			}},
+		{"micropod-segment-after-session", "the micropod segment pair placed after the session segments",
+			micropodSessionPayload, func(p *apb.ZoneAdmissionLeasePayload) {
+				p.Principal = strings.Replace(sessionPayload().GetPrincipal(), "/leg/client", "/micropod/7/leg/client", 1)
+			}},
+		{"micropod-keyword-misspelled", "the micropod keyword misspelled",
+			micropodSessionPayload, func(p *apb.ZoneAdmissionLeasePayload) {
+				p.Principal = strings.Replace(p.Principal, "/micropod/", "/micropods/", 1)
+			}},
+		{"micropod-logs-session", "a logs session cannot target a Micropod",
+			micropodSessionPayload, func(p *apb.ZoneAdmissionLeasePayload) {
+				p.SessionKind = mpb.SessionKind_SESSION_KIND_LOGS
+				p.Principal = micropodSessionPrincipal("7", "logs", "client")
+			}},
+		{"micropod-on-pod-lease", "a pod lease carrying a Micropod sequence", podPayload, withSequence},
+		{"micropod-on-node-lease", "a node lease carrying a Micropod sequence", nodePayload, withSequence},
+		{"micropod-on-share-lease", "a share lease carrying a Micropod sequence", sharePayload, withSequence},
+	}
+	drafts := make([]draft, 0, len(rows))
+	for _, row := range rows {
+		payload := row.base()
+		row.mutate(payload)
+		d, err := malformedDraft(signer, payload, row.name, row.description, dataURI, bundle)
+		if err != nil {
+			return nil, err
+		}
+		drafts = append(drafts, d)
+	}
+	return drafts, nil
+}
+
 // malformedDraft signs a payload without validating it and expects a
 // malformed refusal. The validating signing path refuses to sign such a
 // payload; these vectors prove that verification refuses it as well.
@@ -471,6 +588,69 @@ func podPayload() *apb.ZoneAdmissionLeasePayload {
 		NotAfterUnixS:        1_700_043_200,
 		IssuedAtUnixS:        1_700_000_060,
 	}
+}
+
+// sessionPathPrefix is every session path segment of sessionPayload up to
+// and including the pod incarnation.
+const sessionPathPrefix = "spiffe://z1.zone.example.com/subnet/subnet-1/account/acct-1/namespace/11111111-1111-1111-1111-111111111111/workload/22222222-2222-2222-2222-222222222222/pod/33333333-3333-3333-3333-333333333333/pod-instance/33333333-3333-3333-3333-333333333333.7"
+
+// sessionPayload is a complete exec client session lease for the pod of
+// podPayload, targeting the Pod itself.
+func sessionPayload() *apb.ZoneAdmissionLeasePayload {
+	podID := "33333333-3333-3333-3333-333333333333"
+	return &apb.ZoneAdmissionLeasePayload{
+		Version:              apb.PayloadVersion,
+		LeaseId:              bytes.Repeat([]byte{4}, apb.LeaseIDBytes),
+		Zone:                 "z1",
+		FabricPlane:          mpb.Plane_PLANE_DATA,
+		Principal:            sessionPathPrefix + "/session/exec/session-1/leg/client",
+		SubjectSpkiSha256:    bytes.Repeat([]byte{7}, apb.SHA256Bytes),
+		EndpointKind:         mpb.EndpointKind_ENDPOINT_KIND_SESSION,
+		SubnetId:             "subnet-1",
+		OwnerScope:           "workload-session",
+		AccountId:            "acct-1",
+		NamespaceId:          "11111111-1111-1111-1111-111111111111",
+		WorkloadId:           "22222222-2222-2222-2222-222222222222",
+		NodeId:               "node-1",
+		PodId:                podID,
+		PodInstanceId:        podID + ".7",
+		AssignmentGeneration: 7,
+		SessionId:            "session-1",
+		SessionKind:          mpb.SessionKind_SESSION_KIND_EXEC,
+		SessionLeg:           mpb.SessionLeg_SESSION_LEG_CLIENT,
+		AdapterClasses:       wire.LaneClassStream | wire.LaneClassSpliceLeg,
+		LaneClassCeiling:     wire.LaneClassStream | wire.LaneClassSpliceLeg,
+		PolicyProfile:        "session-default",
+		PolicyProfileVersion: 1,
+		NotBeforeUnixS:       1_700_000_000,
+		NotAfterUnixS:        1_700_003_600,
+		IssuedAtUnixS:        1_700_000_060,
+	}
+}
+
+// micropodSessionPrincipal renders a session principal for sessionPayload's
+// incarnation whose micropod segment is spelled exactly as given.
+func micropodSessionPrincipal(sequence, kind, leg string) string {
+	return sessionPathPrefix + "/micropod/" + sequence + "/session/" + kind + "/session-1/leg/" + leg
+}
+
+// micropodSessionPayload is sessionPayload targeting Micropod 7 of the Pod.
+func micropodSessionPayload() *apb.ZoneAdmissionLeasePayload {
+	payload := sessionPayload()
+	payload.MicropodSequence = 7
+	payload.Principal = micropodSessionPrincipal("7", "exec", "client")
+	return payload
+}
+
+// micropodShellProxyPayload is the proxy leg of a shell session targeting
+// Micropod 7 of the Pod.
+func micropodShellProxyPayload() *apb.ZoneAdmissionLeasePayload {
+	payload := micropodSessionPayload()
+	payload.SessionKind = mpb.SessionKind_SESSION_KIND_SHELL
+	payload.SessionLeg = mpb.SessionLeg_SESSION_LEG_PROXY
+	payload.GrantId = "grant-1"
+	payload.Principal = micropodSessionPrincipal("7", "shell", "proxy")
+	return payload
 }
 
 func sharePayload() *apb.ZoneAdmissionLeasePayload {

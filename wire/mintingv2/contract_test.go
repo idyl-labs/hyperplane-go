@@ -159,6 +159,15 @@ func TestValidateMintSessionSvidRequest(t *testing.T) {
 			proxy(r)
 			r.GrantId = strings.Repeat("g", admissionv3.MaxIdentifierBytes)
 		},
+		"micropod exec client": func(r *mintingv2.MintSessionSvidRequest) { r.MicropodSequence = 7 },
+		"micropod exec proxy":  func(r *mintingv2.MintSessionSvidRequest) { proxy(r); r.MicropodSequence = 7 },
+		"micropod shell client": func(r *mintingv2.MintSessionSvidRequest) {
+			r.SessionKind = commonv2.SessionKind_SESSION_KIND_SHELL
+			r.MicropodSequence = 1
+		},
+		"micropod sequence at maximum": func(r *mintingv2.MintSessionSvidRequest) {
+			r.MicropodSequence = admissionv3.MaxMicropodSequence
+		},
 	}
 	refuse := map[string]func(*mintingv2.MintSessionSvidRequest){
 		"CSR absent":        func(r *mintingv2.MintSessionSvidRequest) { r.CsrDer = nil },
@@ -185,6 +194,18 @@ func TestValidateMintSessionSvidRequest(t *testing.T) {
 			r.GrantId = strings.Repeat("g", admissionv3.MaxIdentifierBytes+1)
 		},
 		"unknown protobuf data": func(r *mintingv2.MintSessionSvidRequest) { r.ProtoReflect().SetUnknown(unknownField) },
+		"micropod logs session": func(r *mintingv2.MintSessionSvidRequest) {
+			r.SessionKind = commonv2.SessionKind_SESSION_KIND_LOGS
+			r.MicropodSequence = 7
+		},
+		"micropod unknown kind": func(r *mintingv2.MintSessionSvidRequest) {
+			r.SessionKind = commonv2.SessionKind(99)
+			r.MicropodSequence = 7
+		},
+		"micropod sequence over maximum": func(r *mintingv2.MintSessionSvidRequest) {
+			r.MicropodSequence = admissionv3.MaxMicropodSequence + 1
+		},
+		"micropod sequence largest uint64": func(r *mintingv2.MintSessionSvidRequest) { r.MicropodSequence = ^uint64(0) },
 	}
 	for name, mutate := range accept {
 		request := proto.Clone(base).(*mintingv2.MintSessionSvidRequest)

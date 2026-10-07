@@ -123,8 +123,16 @@ type MintSessionSvidRequest struct {
 	AssignmentGeneration int64                `protobuf:"varint,6,opt,name=assignment_generation,json=assignmentGeneration,proto3" json:"assignment_generation,omitempty"`
 	GrantId              string               `protobuf:"bytes,7,opt,name=grant_id,json=grantId,proto3" json:"grant_id,omitempty"` // required only for proxy leg
 	ExpiresAtUnixS       uint64               `protobuf:"varint,8,opt,name=expires_at_unix_s,json=expiresAtUnixS,proto3" json:"expires_at_unix_s,omitempty"`
-	unknownFields        protoimpl.UnknownFields
-	sizeCache            protoimpl.SizeCache
+	// The sequence number of a Micropod within the Pod, when the session
+	// targets one; 0 when the session targets the Pod itself. A positive
+	// value is at most 2^53-1 and is valid only for exec and shell sessions,
+	// on either leg. The resulting lease and session principal carry the same
+	// value. Like every other field, it is part of the request's canonical
+	// encoding, so two requests that differ only in it are different
+	// requests.
+	MicropodSequence uint64 `protobuf:"varint,9,opt,name=micropod_sequence,json=micropodSequence,proto3" json:"micropod_sequence,omitempty"`
+	unknownFields    protoimpl.UnknownFields
+	sizeCache        protoimpl.SizeCache
 }
 
 func (x *MintSessionSvidRequest) Reset() {
@@ -209,6 +217,13 @@ func (x *MintSessionSvidRequest) GetGrantId() string {
 func (x *MintSessionSvidRequest) GetExpiresAtUnixS() uint64 {
 	if x != nil {
 		return x.ExpiresAtUnixS
+	}
+	return 0
+}
+
+func (x *MintSessionSvidRequest) GetMicropodSequence() uint64 {
+	if x != nil {
+		return x.MicropodSequence
 	}
 	return 0
 }
@@ -571,7 +586,7 @@ const file_idyl_minting_v2_minting_proto_rawDesc = "" +
 	"\x12MintPodSvidRequest\x12\x17\n" +
 	"\acsr_der\x18\x01 \x01(\fR\x06csrDer\x12\x15\n" +
 	"\x06pod_id\x18\x02 \x01(\tR\x05podId\x123\n" +
-	"\x15assignment_generation\x18\x03 \x01(\x03R\x14assignmentGeneration\"\xe7\x02\n" +
+	"\x15assignment_generation\x18\x03 \x01(\x03R\x14assignmentGeneration\"\x94\x03\n" +
 	"\x16MintSessionSvidRequest\x12\x17\n" +
 	"\acsr_der\x18\x01 \x01(\fR\x06csrDer\x12\x1d\n" +
 	"\n" +
@@ -582,7 +597,8 @@ const file_idyl_minting_v2_minting_proto_rawDesc = "" +
 	"\x06pod_id\x18\x05 \x01(\tR\x05podId\x123\n" +
 	"\x15assignment_generation\x18\x06 \x01(\x03R\x14assignmentGeneration\x12\x19\n" +
 	"\bgrant_id\x18\a \x01(\tR\agrantId\x12)\n" +
-	"\x11expires_at_unix_s\x18\b \x01(\x04R\x0eexpiresAtUnixS\"\xc7\x01\n" +
+	"\x11expires_at_unix_s\x18\b \x01(\x04R\x0eexpiresAtUnixS\x12+\n" +
+	"\x11micropod_sequence\x18\t \x01(\x04R\x10micropodSequence\"\xc7\x01\n" +
 	"\x17PodCredentialGeneration\x12\x19\n" +
 	"\bcert_der\x18\x01 \x03(\fR\acertDer\x12%\n" +
 	"\x0elease_envelope\x18\x02 \x01(\fR\rleaseEnvelope\x12%\n" +
