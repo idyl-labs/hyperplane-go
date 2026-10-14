@@ -76,6 +76,8 @@ func ValidateMintPodSvidRequest(request *MintPodSvidRequest) error {
 // session kind and leg, a grant_id that is present on the proxy leg and
 // absent on the client leg, and a micropod_sequence that is zero or, for
 // an exec or shell session only, at most admissionv3.MaxMicropodSequence.
+// Positive credential_generation is confined to managed Micropod exec;
+// zero preserves the fixed session request contract.
 func ValidateMintSessionSvidRequest(request *MintSessionSvidRequest) error {
 	if request == nil || len(request.GetCsrDer()) == 0 || len(request.GetCsrDer()) > MaxCSRDERBytes ||
 		!validText(request.GetSessionId(), admissionv3.MaxIdentifierBytes) ||
@@ -109,6 +111,9 @@ func ValidateMintSessionSvidRequest(request *MintSessionSvidRequest) error {
 		if request.GetSessionKind() != commonv2.SessionKind_SESSION_KIND_EXEC && request.GetSessionKind() != commonv2.SessionKind_SESSION_KIND_SHELL {
 			return fmt.Errorf("mintingv2: micropod session kind %d", request.GetSessionKind())
 		}
+	}
+	if request.GetCredentialGeneration() != 0 && (request.GetMicropodSequence() == 0 || request.GetSessionKind() != commonv2.SessionKind_SESSION_KIND_EXEC) {
+		return fmt.Errorf("mintingv2: renewable credentials require a Micropod exec session")
 	}
 	return rejectUnknown(request)
 }

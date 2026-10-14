@@ -59,7 +59,7 @@ func TestMintSessionSvidRequestMicropodSequenceIsRequestIdentity(t *testing.T) {
 		t.Fatal("requests differing only in the Micropod sequence encode identically")
 	}
 
-	previous := dynamicpb.NewMessage(previousSessionRequestDescriptor(t))
+	previous := dynamicpb.NewMessage(sessionRequestDescriptorWithout(t, 9))
 	if err := proto.Unmarshal(ordinaryRaw, previous); err != nil {
 		t.Fatal(err)
 	}
@@ -90,7 +90,7 @@ func TestMintSessionSvidRequestMicropodRefusedByPreviousContract(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	previous := dynamicpb.NewMessage(previousSessionRequestDescriptor(t))
+	previous := dynamicpb.NewMessage(sessionRequestDescriptorWithout(t, 9))
 	if err := proto.Unmarshal(raw, previous); err != nil {
 		t.Fatal(err)
 	}
@@ -108,9 +108,8 @@ func TestMintSessionSvidRequestMicropodRefusedByPreviousContract(t *testing.T) {
 	}
 }
 
-// previousSessionRequestDescriptor is MintSessionSvidRequest as it was
-// before micropod_sequence: the current descriptor with field 9 removed.
-func previousSessionRequestDescriptor(t *testing.T) protoreflect.MessageDescriptor {
+// sessionRequestDescriptorWithout models a reader preceding one additive field.
+func sessionRequestDescriptorWithout(t *testing.T, fieldNumber int32) protoreflect.MessageDescriptor {
 	t.Helper()
 	file := protodesc.ToFileDescriptorProto(mintingv2.File_idyl_minting_v2_minting_proto)
 	found := false
@@ -120,7 +119,7 @@ func previousSessionRequestDescriptor(t *testing.T) protoreflect.MessageDescript
 		}
 		kept := message.Field[:0]
 		for _, field := range message.GetField() {
-			if field.GetNumber() == 9 {
+			if field.GetNumber() == fieldNumber {
 				found = true
 				continue
 			}
@@ -129,11 +128,67 @@ func previousSessionRequestDescriptor(t *testing.T) protoreflect.MessageDescript
 		message.Field = kept
 	}
 	if !found {
-		t.Fatal("MintSessionSvidRequest has no field 9")
+		t.Fatalf("MintSessionSvidRequest has no field %d", fieldNumber)
 	}
 	previous, err := protodesc.NewFile(file, protoregistry.GlobalFiles)
 	if err != nil {
 		t.Fatal(err)
 	}
 	return previous.Messages().ByName("MintSessionSvidRequest")
+}
+
+// A renewable generation is authenticated request identity. A fixed session's
+// bytes are unchanged, and an older reader observes unknown content and refuses
+// the new profile rather than treating it as a fixed session.
+func TestManagedCredentialGenerationIdentityAndPreviousReader(t *testing.T) {
+	request := &mintingv2.MintSessionSvidRequest{
+		CsrDer: []byte{0x30, 0x01, 0x01}, SessionId: "session-a",
+		SessionKind: commonv2.SessionKind_SESSION_KIND_EXEC, SessionLeg: commonv2.SessionLeg_SESSION_LEG_CLIENT,
+		PodId: "pod-a", AssignmentGeneration: 7, ExpiresAtUnixS: 1_700_003_600, MicropodSequence: 7,
+	}
+	encode := func(value proto.Message) []byte {
+		t.Helper()
+		raw, err := proto.MarshalOptions{Deterministic: true}.Marshal(value)
+		if err != nil {
+			t.Fatal(err)
+		}
+		return raw
+	}
+	fixed := encode(request)
+	previous := dynamicpb.NewMessage(sessionRequestDescriptorWithout(t, 10))
+	if err := proto.Unmarshal(fixed, previous); err != nil {
+		t.Fatal(err)
+	}
+	if len(previous.GetUnknown()) != 0 || !bytes.Equal(fixed, encode(previous)) {
+		t.Fatal("fixed session wire changed")
+	}
+	for _, generation := range []uint64{1, 2, 1 << 53, ^uint64(0)} {
+		request.CredentialGeneration = generation
+		if err := mintingv2.ValidateMintSessionSvidRequest(request); err != nil {
+			t.Fatalf("generation %d: %v", generation, err)
+		}
+		raw := encode(request)
+		if bytes.Equal(fixed, raw) {
+			t.Fatal("generation is absent from request identity")
+		}
+		if err := proto.Unmarshal(raw, previous); err != nil {
+			t.Fatal(err)
+		}
+		if len(previous.GetUnknown()) == 0 {
+			t.Fatal("previous reader accepted the managed generation")
+		}
+		var decoded mintingv2.MintSessionSvidRequest
+		if err := proto.Unmarshal(raw, &decoded); err != nil || decoded.GetCredentialGeneration() != generation {
+			t.Fatal("generation did not round-trip exactly")
+		}
+	}
+	request.MicropodSequence = 0
+	if mintingv2.ValidateMintSessionSvidRequest(request) == nil {
+		t.Fatal("Pod session accepted managed credentials")
+	}
+	request.MicropodSequence = 7
+	request.SessionKind = commonv2.SessionKind_SESSION_KIND_SHELL
+	if mintingv2.ValidateMintSessionSvidRequest(request) == nil {
+		t.Fatal("shell session accepted managed credentials")
+	}
 }
