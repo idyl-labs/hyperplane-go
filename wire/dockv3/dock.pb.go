@@ -201,11 +201,14 @@ func (x *DockHello) GetDockProofSignature() []byte {
 
 // DockWelcome is the edge's reply, as in dock/2.
 type DockWelcome struct {
-	state         protoimpl.MessageState `protogen:"open.v1"`
-	Gen           *commonv2.DockGen      `protobuf:"bytes,1,opt,name=gen,proto3" json:"gen,omitempty"`
-	KeepaliveMs   uint32                 `protobuf:"varint,2,opt,name=keepalive_ms,json=keepaliveMs,proto3" json:"keepalive_ms,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	state       protoimpl.MessageState `protogen:"open.v1"`
+	Gen         *commonv2.DockGen      `protobuf:"bytes,1,opt,name=gen,proto3" json:"gen,omitempty"`
+	KeepaliveMs uint32                 `protobuf:"varint,2,opt,name=keepalive_ms,json=keepaliveMs,proto3" json:"keepalive_ms,omitempty"`
+	// Negotiated service-lane profile, as in dock/2. The admission lease and
+	// explicit service-lane grant remain the source of requester authority.
+	ServiceLaneProfile string `protobuf:"bytes,3,opt,name=service_lane_profile,json=serviceLaneProfile,proto3" json:"service_lane_profile,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *DockWelcome) Reset() {
@@ -250,6 +253,13 @@ func (x *DockWelcome) GetKeepaliveMs() uint32 {
 		return x.KeepaliveMs
 	}
 	return 0
+}
+
+func (x *DockWelcome) GetServiceLaneProfile() string {
+	if x != nil {
+		return x.ServiceLaneProfile
+	}
+	return ""
 }
 
 // DockDrain is the edge's drain signal, as in dock/2.
@@ -683,10 +693,11 @@ const file_idyl_dock_v3_dock_proto_rawDesc = "" +
 	"\x0fpredecessor_gen\x18\x03 \x01(\v2\x1b.idyl.membership.v2.DockGenR\x0epredecessorGen\x12%\n" +
 	"\x0elease_envelope\x18\x04 \x01(\fR\rleaseEnvelope\x12(\n" +
 	"\x10dock_proof_input\x18\x05 \x01(\fR\x0edockProofInput\x120\n" +
-	"\x14dock_proof_signature\x18\x06 \x01(\fR\x12dockProofSignature\"_\n" +
+	"\x14dock_proof_signature\x18\x06 \x01(\fR\x12dockProofSignature\"\x91\x01\n" +
 	"\vDockWelcome\x12-\n" +
 	"\x03gen\x18\x01 \x01(\v2\x1b.idyl.membership.v2.DockGenR\x03gen\x12!\n" +
-	"\fkeepalive_ms\x18\x02 \x01(\rR\vkeepaliveMs\"H\n" +
+	"\fkeepalive_ms\x18\x02 \x01(\rR\vkeepaliveMs\x120\n" +
+	"\x14service_lane_profile\x18\x03 \x01(\tR\x12serviceLaneProfile\"H\n" +
 	"\tDockDrain\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12#\n" +
 	"\rdeadline_unix\x18\x02 \x01(\x04R\fdeadlineUnix\"6\n" +

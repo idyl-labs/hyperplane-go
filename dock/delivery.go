@@ -48,8 +48,8 @@ func drainReceive(s transportReceiveStream) {
 	}
 }
 
-// NakError is a typed refusal of a delivery verb (SendEvent, OpenRPC or
-// OpenLane) by the edge.
+// NakError is a typed refusal of a delivery verb by the edge, including
+// SendEvent, OpenRPC, OpenLane, OpenServiceLane and WithdrawServiceTarget.
 type NakError struct {
 	Code dpb.NakCode
 }

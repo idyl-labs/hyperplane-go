@@ -79,7 +79,7 @@
 // A lane is an association between two docks, established by the fabric
 // and announced to both of them on their control streams. Each lane
 // carries any number of independent bidirectional streams (*LaneStream).
-// Either side may open one with Lane.OpenStream; streams the peer opens
+// Either side of an ordinary lane may open one with Lane.OpenStream; streams the peer opens
 // arrive through Lane.AcceptStream. Every lane stream begins with a short
 // attribution header (the lane's id, a declared stream class and opaque
 // application bytes), and after it is a transparent byte pipe. A lane
@@ -136,6 +136,25 @@
 // pinned to an expected generation, principal and endpoint kind
 // (LaneTarget); the fabric ends the lane as soon as a pinned value no
 // longer matches.
+//
+// # Node service lanes
+//
+// When the edge negotiates wire.NodeServiceLaneProfile, an admitted dock/3
+// Node can call OpenServiceLane with an exact Service SPIFFE ID. The edge
+// requires an explicit Node-only grant and selects an eligible connection
+// of that principal. The returned lane permits STREAM only and stays bound
+// to the selected connection generation. Its advisory peer principal never
+// replaces the application's end-to-end authentication.
+// Only the Node initiates new streams on this profile's lane. The Service
+// accepts them and may respond on the same bidirectional stream; it cannot
+// initiate a new stream toward the Node.
+//
+// A Service offers target eligibility by setting Config.ServiceTargetProfile
+// on its own dock/2 connection. A requested profile that the edge does not
+// negotiate fails the opening. WithdrawServiceTarget removes that connection
+// from new selection before acknowledging, while existing lanes continue.
+// Missing or unknown negotiated profiles refuse service operations locally.
+// Ordinary docking and locator-based operations retain their contracts.
 //
 // # Transports
 //

@@ -45,6 +45,9 @@ message DockHello {
 message DockWelcome {
   idyl.membership.v2.DockGen gen = 1;
   uint32 keepalive_ms = 2;
+  // Negotiated service-lane profile, as in dock/2. The admission lease and
+  // explicit service-lane grant remain the source of requester authority.
+  string service_lane_profile = 3;
 }
 
 // DockDrain is the edge's drain signal, as in dock/2.

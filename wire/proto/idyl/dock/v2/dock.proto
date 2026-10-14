@@ -45,6 +45,10 @@ message DockHello {
   // Naming it makes this dock a succession of that generation. Absent for a
   // first dock and for a client that kept no record of its previous dock.
   idyl.membership.v2.DockGen predecessor_gen = 3;
+  // Opts an authenticated Service connection into the named service-target
+  // profile. Empty preserves ordinary dock behavior. A nonempty unknown
+  // profile is refused; the profile supplies no identity or lane authority.
+  string service_target_profile = 4;
 }
 
 // DockWelcome is the edge's reply: the dock is admitted and its generation
@@ -58,6 +62,9 @@ message DockWelcome {
   // activity at least this often, or the edge's idle timeout treats the
   // connection as dead.
   uint32 keepalive_ms = 2;
+  // Negotiated service-lane profile. Empty means unavailable. Support alone
+  // grants no requester or target authority.
+  string service_lane_profile = 3;
 }
 
 // DockDrain is the edge's drain signal: finish existing work, open nothing
