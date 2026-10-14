@@ -19,6 +19,7 @@ import (
 	"crypto/ed25519"
 	"errors"
 	"io"
+	"strconv"
 	"testing"
 	"time"
 
@@ -46,7 +47,7 @@ func TestServiceProfileNegotiationOverBothTransports(t *testing.T) {
 	for _, transport := range edgeTransports {
 		for _, offered := range []bool{false, true} {
 			for _, profile := range []string{"", wire.NodeServiceLaneProfile, "future-profile/2"} {
-				t.Run(transport+"/"+profile+"/offer="+boolName(offered), func(t *testing.T) {
+				t.Run(transport+"/"+profile+"/offer="+strconv.FormatBool(offered), func(t *testing.T) {
 					edge := newScriptedEdge(t, newTestPKI(t), transport, serviceWelcome(profile))
 					cfg := edge.config()
 					if offered {
@@ -85,11 +86,14 @@ func TestServiceProfileNegotiationOverBothTransports(t *testing.T) {
 	}
 }
 
-func boolName(v bool) string {
-	if v {
-		return "true"
+// nodeConfig is the scripted edge's client config opened as a dock/3 Node.
+func nodeConfig(t *testing.T, edge *scriptedEdge) Config {
+	t.Helper()
+	cfg := edge.config()
+	cfg.Admission = &DemandAdmission{
+		LeaseEnvelope: testNodeLease(t, time.Now()), Signer: edge.pki.clientCert.PrivateKey.(ed25519.PrivateKey),
 	}
-	return "false"
+	return cfg
 }
 
 func TestInvalidServiceOfferDoesNotDial(t *testing.T) {
@@ -123,7 +127,7 @@ func TestServiceOperationsRefuseLocallyWithoutNegotiatedProfile(t *testing.T) {
 	}
 	for _, profile := range []string{"", "future-profile/2"} {
 		d, edge := newLaneDock(t)
-		d.serviceLaneProfile, d.serviceTarget = profile, true
+		d.serviceLaneProfile, d.serviceTarget, d.node = profile, true, true
 		_, err := d.OpenServiceLane(laneCtx(t), servicePrincipal, nil)
 		var nak NakError
 		if !errors.As(err, &nak) || nak.Code != dpb.NakCode_NAK_CODE_ADAPTER_MISMATCH {
@@ -139,6 +143,10 @@ func TestServiceOperationsRefuseLocallyWithoutNegotiatedProfile(t *testing.T) {
 	}
 	d, edge := newLaneDock(t)
 	d.serviceLaneProfile = wire.NodeServiceLaneProfile
+	if lane, err := d.OpenServiceLane(laneCtx(t), servicePrincipal, nil); err == nil || lane != nil {
+		t.Fatal("dock/2 connection opened a Node service lane")
+	}
+	d.node = true
 	for _, principal := range []string{"", "https://example.org/service", "spiffe://example.org/service/a?token=opaque"} {
 		if lane, err := d.OpenServiceLane(laneCtx(t), principal, nil); err == nil || lane != nil {
 			t.Fatalf("noncanonical selector opened: %v, %v", lane, err)
@@ -148,7 +156,7 @@ func TestServiceOperationsRefuseLocallyWithoutNegotiatedProfile(t *testing.T) {
 		t.Fatal("unoffered connection withdrew service target")
 	}
 	if edge.conn.opens.Load() != 0 {
-		t.Fatal("invalid selector or opt-in used transport")
+		t.Fatal("invalid role, selector or opt-in used transport")
 	}
 }
 
@@ -183,11 +191,7 @@ func TestOpenServiceLaneOverBothTransports(t *testing.T) {
 	for _, transport := range edgeTransports {
 		t.Run(transport, func(t *testing.T) {
 			edge := newScriptedEdge(t, newTestPKI(t), transport, serviceWelcome(wire.NodeServiceLaneProfile))
-			cfg := edge.config()
-			cfg.Admission = &DemandAdmission{
-				LeaseEnvelope: testNodeLease(t, time.Now()), Signer: edge.pki.clientCert.PrivateKey.(ed25519.PrivateKey),
-			}
-			d, s := edge.open(cfg)
+			d, s := edge.open(nodeConfig(t, edge))
 			ctx, cancel := context.WithCancel(laneCtx(t))
 			defer cancel()
 			result := startServiceOpen(d, ctx, []byte("opaque"))
@@ -266,7 +270,7 @@ func TestServiceLaneRefusalsOverBothTransports(t *testing.T) {
 		for _, tc := range cases {
 			t.Run(transport+"/"+tc.name, func(t *testing.T) {
 				edge := newScriptedEdge(t, newTestPKI(t), transport, serviceWelcome(wire.NodeServiceLaneProfile))
-				d, s := edge.open(edge.config())
+				d, s := edge.open(nodeConfig(t, edge))
 				result := startServiceOpen(d, laneCtx(t), nil)
 				st, _ := edgeServeVerb(laneCtx(t), t, s, tc.reply)
 				if tc.peer != "" {
@@ -334,7 +338,7 @@ func TestServiceWithdrawalOverBothTransports(t *testing.T) {
 func TestServiceWithdrawalRefusalOverBothTransports(t *testing.T) {
 	for _, transport := range edgeTransports {
 		for _, refused := range []bool{false, true} {
-			t.Run(transport+"/nak="+boolName(refused), func(t *testing.T) {
+			t.Run(transport+"/nak="+strconv.FormatBool(refused), func(t *testing.T) {
 				edge := newScriptedEdge(t, newTestPKI(t), transport, serviceWelcome(wire.NodeServiceLaneProfile))
 				cfg := edge.config()
 				cfg.ServiceTargetProfile = wire.NodeServiceLaneProfile
@@ -363,7 +367,7 @@ func TestServiceMetadataUsesExistingFrameCapOverBothTransports(t *testing.T) {
 	for _, transport := range edgeTransports {
 		t.Run(transport, func(t *testing.T) {
 			edge := newScriptedEdge(t, newTestPKI(t), transport, serviceWelcome(wire.NodeServiceLaneProfile))
-			d, s := edge.open(edge.config())
+			d, s := edge.open(nodeConfig(t, edge))
 			result := startServiceOpen(d, laneCtx(t), make([]byte, wire.DefaultMaxFrame))
 			st, err := s.acceptStream(laneCtx(t))
 			if err != nil {
@@ -388,9 +392,9 @@ func TestServiceMetadataUsesExistingFrameCapOverBothTransports(t *testing.T) {
 func TestServiceSetupCancellationOverBothTransports(t *testing.T) {
 	for _, transport := range edgeTransports {
 		for _, attachedReply := range []bool{false, true} {
-			t.Run(transport+"/replied="+boolName(attachedReply), func(t *testing.T) {
+			t.Run(transport+"/replied="+strconv.FormatBool(attachedReply), func(t *testing.T) {
 				edge := newScriptedEdge(t, newTestPKI(t), transport, serviceWelcome(wire.NodeServiceLaneProfile))
-				d, s := edge.open(edge.config())
+				d, s := edge.open(nodeConfig(t, edge))
 				ctx, cancel := context.WithCancel(laneCtx(t))
 				defer cancel()
 				result := startServiceOpen(d, ctx, nil)

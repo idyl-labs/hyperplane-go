@@ -151,6 +151,7 @@ type Dock struct {
 	grantedKeepalive   time.Duration
 	serviceLaneProfile string
 	serviceTarget      bool
+	node               bool // opened with dock/3 admission
 
 	drained chan struct{}
 
@@ -296,6 +297,7 @@ func openDock(ctx context.Context, cfg Config, conn transportConn, transport str
 		grantedKeepalive:   time.Duration(welcome.GetKeepaliveMs()) * time.Millisecond,
 		serviceLaneProfile: welcome.GetServiceLaneProfile(),
 		serviceTarget:      cfg.ServiceTargetProfile != "",
+		node:               cfg.Admission != nil,
 		drained:            make(chan struct{}),
 	}
 	go d.watchControl()
