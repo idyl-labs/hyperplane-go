@@ -79,12 +79,12 @@
 // A lane is an association between two docks, established by the fabric
 // and announced to both of them on their control streams. Each lane
 // carries any number of independent bidirectional streams (*LaneStream).
-// Either side may open one with Lane.OpenStream; streams the peer opens
-// arrive through Lane.AcceptStream. Every lane stream begins with a short
-// attribution header (the lane's id, a declared stream class and opaque
-// application bytes), and after it is a transparent byte pipe. A lane
-// ends exactly once; Lane.Closed then fires and Lane.CloseCause reports
-// why. An ended lane never comes back.
+// Either side of an ordinary lane may open one with Lane.OpenStream;
+// streams the peer opens arrive through Lane.AcceptStream. Every lane
+// stream begins with a short attribution header (the lane's id, a declared
+// stream class and opaque application bytes), and after it is a
+// transparent byte pipe. A lane ends exactly once; Lane.Closed then fires
+// and Lane.CloseCause reports why. An ended lane never comes back.
 //
 // A lane granted wire.LaneClassFlow also carries flows: best-effort
 // datagrams sent with Lane.SendFlow and received with Lane.ReceiveFlow,
@@ -136,6 +136,26 @@
 // pinned to an expected generation, principal and endpoint kind
 // (LaneTarget); the fabric ends the lane as soon as a pinned value no
 // longer matches.
+//
+// # Node service lanes
+//
+// When the edge negotiates wire.NodeServiceLaneProfile, a Node docked with
+// dock/3 can call OpenServiceLane to reach a Service named by its exact
+// SPIFFE ID. The edge opens the lane only if the Node holds an explicit
+// grant for that Service, and then picks one eligible connection of the
+// Service. The lane carries streams only and stays bound to that one
+// connection for its whole life. Its peer principal is advisory: the
+// application still authenticates the Service end to end. Only the Node
+// opens streams on such a lane. The Service accepts each stream and replies
+// on it, but it cannot open a stream toward the Node.
+//
+// A Service makes a dock/2 connection eligible by setting
+// Config.ServiceTargetProfile. If the edge does not negotiate the requested
+// profile, the opening fails. WithdrawServiceTarget stops the edge from
+// choosing that connection for new lanes; lanes already open continue.
+// Both operations are refused locally on a dock whose edge did not
+// negotiate the profile, or that has the wrong role. Ordinary docking and
+// locator-based verbs are unchanged.
 //
 // # Transports
 //

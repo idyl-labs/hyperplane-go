@@ -22,9 +22,11 @@ syntax = "proto3";
 // kind byte 0x02 and then one RequesterToEdge frame, and reads one
 // EdgeToRequester reply. The verbs are SendEvent (one payload, answered by
 // Ack or Nak), OpenRpc (a byte pipe, answered by RpcOpened or Nak) and
-// OpenLane (a lane, answered by LaneOpened or Nak). The target is named by
-// a sealed locator, which is opaque to the requester; the edge unseals it
-// and authorizes the verb before routing it.
+// OpenLane (a lane, answered by LaneOpened or Nak). These targets are named
+// by a sealed locator, which is opaque to the requester; the edge unseals it
+// and authorizes the verb before routing it. The negotiated service-lane
+// profile adds a Node-only request for one exact Service principal and a
+// Service-only withdrawal of its own connection's target eligibility.
 //
 // On the receiving side the edge opens a delivery stream to the target
 // dock: EventPush on a unidirectional stream and RpcOpen on a
@@ -119,16 +121,39 @@ message OpenLane {
   reserved "candidate_offer";
 }
 
+// OpenServiceLane asks for one STREAM lane from an authenticated dock/3 Node
+// to an eligible connection of this exact Service principal. It requires the
+// negotiated node-service-lanes/1 profile and an explicit Node-only grant,
+// even when scopes match. The fabric authorizes before inspecting target
+// presence and pins the selected connection generation for the lane's life.
+// Only the Node requester initiates new streams. The Service accepts them
+// and may respond on the same bidirectional stream, without reverse opens.
+// This request creates no locator, identity claim or third-party lane.
+message OpenServiceLane {
+  string service_principal = 1;
+  // Opaque application metadata delivered in LaneAttached, never identity.
+  bytes metadata = 2;
+}
+
+// WithdrawServiceTarget removes only the authenticated caller connection's
+// service-target eligibility before Ack. It admits no new lanes afterward;
+// existing lanes remain bound to that connection until their normal end.
+// Other connections with the same Service principal remain independent.
+message WithdrawServiceTarget {}
+
 // LaneTargetConfirm reports the generation and principal actually
-// attached for one target. The principal is advisory: a lane's ends
-// authenticate each other through their own end-to-end secured channel.
+// attached for one target. OpenServiceLane reports its exact principal with
+// gen absent: the full selected generation remains pinned inside the fabric.
+// The principal is advisory: a lane's ends authenticate each other through
+// their own end-to-end secured channel.
 message LaneTargetConfirm {
   idyl.membership.v2.DockGen gen = 1;
   string principal = 2;
 }
 
 // LaneOpened confirms a lane. target_confirms aligns one to one with
-// OpenLane.targets.
+// OpenLane.targets. OpenServiceLane returns exactly one confirm with the
+// requested principal and no gen, plus the requester's nonzero lane_id.
 message LaneOpened {
   // The lane's id on the requester's own connection, for a lane whose
   // other end is the requester's dock. Unset for a lane between two other
@@ -139,7 +164,9 @@ message LaneOpened {
   reserved "candidate_answer";
 }
 
-// Ack confirms that a SendEvent payload entered the target dock's stream.
+// Ack confirms that a SendEvent payload entered the target dock's stream,
+// or that WithdrawServiceTarget removed the caller connection's eligibility
+// for new service lanes. Withdrawal does not acknowledge a stream drain.
 message Ack {}
 
 // RpcOpened confirms the rpc stream is connected; bytes flow after it.
@@ -156,6 +183,8 @@ message RequesterToEdge {
     SendEvent send_event = 1;
     OpenRpc open_rpc = 2;
     OpenLane open_lane = 4;
+    OpenServiceLane open_service_lane = 5;
+    WithdrawServiceTarget withdraw_service_target = 6;
   }
   reserved 3;
   reserved "open_splice";

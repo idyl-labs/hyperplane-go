@@ -138,8 +138,12 @@ type DockHello struct {
 	// Naming it makes this dock a succession of that generation. Absent for a
 	// first dock and for a client that kept no record of its previous dock.
 	PredecessorGen *commonv2.DockGen `protobuf:"bytes,3,opt,name=predecessor_gen,json=predecessorGen,proto3" json:"predecessor_gen,omitempty"`
-	unknownFields  protoimpl.UnknownFields
-	sizeCache      protoimpl.SizeCache
+	// Opts an authenticated Service connection into the named service-target
+	// profile. Empty preserves ordinary dock behavior. A nonempty unknown
+	// profile is refused; the profile supplies no identity or lane authority.
+	ServiceTargetProfile string `protobuf:"bytes,4,opt,name=service_target_profile,json=serviceTargetProfile,proto3" json:"service_target_profile,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *DockHello) Reset() {
@@ -193,6 +197,13 @@ func (x *DockHello) GetPredecessorGen() *commonv2.DockGen {
 	return nil
 }
 
+func (x *DockHello) GetServiceTargetProfile() string {
+	if x != nil {
+		return x.ServiceTargetProfile
+	}
+	return ""
+}
+
 // DockWelcome is the edge's reply: the dock is admitted and its generation
 // disclosed.
 type DockWelcome struct {
@@ -204,9 +215,12 @@ type DockWelcome struct {
 	// Granted cadence in milliseconds. The client must produce transport
 	// activity at least this often, or the edge's idle timeout treats the
 	// connection as dead.
-	KeepaliveMs   uint32 `protobuf:"varint,2,opt,name=keepalive_ms,json=keepaliveMs,proto3" json:"keepalive_ms,omitempty"`
-	unknownFields protoimpl.UnknownFields
-	sizeCache     protoimpl.SizeCache
+	KeepaliveMs uint32 `protobuf:"varint,2,opt,name=keepalive_ms,json=keepaliveMs,proto3" json:"keepalive_ms,omitempty"`
+	// Negotiated service-lane profile. Empty means unavailable. Support alone
+	// grants no requester or target authority.
+	ServiceLaneProfile string `protobuf:"bytes,3,opt,name=service_lane_profile,json=serviceLaneProfile,proto3" json:"service_lane_profile,omitempty"`
+	unknownFields      protoimpl.UnknownFields
+	sizeCache          protoimpl.SizeCache
 }
 
 func (x *DockWelcome) Reset() {
@@ -251,6 +265,13 @@ func (x *DockWelcome) GetKeepaliveMs() uint32 {
 		return x.KeepaliveMs
 	}
 	return 0
+}
+
+func (x *DockWelcome) GetServiceLaneProfile() string {
+	if x != nil {
+		return x.ServiceLaneProfile
+	}
+	return ""
 }
 
 // DockDrain is the edge's drain signal: finish existing work, open nothing
@@ -701,14 +722,16 @@ var File_idyl_dock_v2_dock_proto protoreflect.FileDescriptor
 
 const file_idyl_dock_v2_dock_proto_rawDesc = "" +
 	"\n" +
-	"\x17idyl/dock/v2/dock.proto\x12\fidyl.dock.v2\x1a\x1fidyl/membership/v2/common.proto\"\x90\x01\n" +
+	"\x17idyl/dock/v2/dock.proto\x12\fidyl.dock.v2\x1a\x1fidyl/membership/v2/common.proto\"\xc6\x01\n" +
 	"\tDockHello\x12\x1a\n" +
 	"\bcontract\x18\x01 \x01(\tR\bcontract\x12!\n" +
 	"\fkeepalive_ms\x18\x02 \x01(\rR\vkeepaliveMs\x12D\n" +
-	"\x0fpredecessor_gen\x18\x03 \x01(\v2\x1b.idyl.membership.v2.DockGenR\x0epredecessorGen\"_\n" +
+	"\x0fpredecessor_gen\x18\x03 \x01(\v2\x1b.idyl.membership.v2.DockGenR\x0epredecessorGen\x124\n" +
+	"\x16service_target_profile\x18\x04 \x01(\tR\x14serviceTargetProfile\"\x91\x01\n" +
 	"\vDockWelcome\x12-\n" +
 	"\x03gen\x18\x01 \x01(\v2\x1b.idyl.membership.v2.DockGenR\x03gen\x12!\n" +
-	"\fkeepalive_ms\x18\x02 \x01(\rR\vkeepaliveMs\"H\n" +
+	"\fkeepalive_ms\x18\x02 \x01(\rR\vkeepaliveMs\x120\n" +
+	"\x14service_lane_profile\x18\x03 \x01(\tR\x12serviceLaneProfile\"H\n" +
 	"\tDockDrain\x12\x16\n" +
 	"\x06reason\x18\x01 \x01(\tR\x06reason\x12#\n" +
 	"\rdeadline_unix\x18\x02 \x01(\x04R\fdeadlineUnix\"6\n" +

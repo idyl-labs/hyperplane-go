@@ -55,8 +55,9 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           # The latest patch release, so vulnerability checks see a current
-          # standard library.
+          # standard library. check-latest skips a stale runner cache.
           go-version: "1.26.x"
+          check-latest: true
       - name: Tidy
         run: make tidy-check
       - name: Dependency direction
@@ -94,8 +95,9 @@ jobs:
       - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7.0.0
         with:
           # The latest patch release, so vulnerability checks see a current
-          # standard library.
+          # standard library. check-latest skips a stale runner cache.
           go-version: "1.26.x"
+          check-latest: true
       # A change that breaks the wire contract against the base branch fails
       # here and needs a new protocol version instead.
       - name: Breaking changes

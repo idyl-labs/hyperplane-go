@@ -67,6 +67,14 @@ type Config struct {
 	// dock/2.
 	Admission *DemandAdmission
 
+	// ServiceTargetProfile opts this dock/2 Service connection into an exact
+	// service-target profile. Empty retains ordinary docking. The supported
+	// value is wire.NodeServiceLaneProfile; unknown values and dock/3 attempts
+	// are refused locally. The edge still authenticates the Service and judges
+	// every grant. An edge that does not negotiate the requested profile fails
+	// this opening without retrying an ordinary dock.
+	ServiceTargetProfile string
+
 	// Predecessor names the client's previous generation, as reported by
 	// the previous dock's Gen, and makes this dock a succession of it. Nil
 	// for a first dock or for a client that does not hold its previous
@@ -139,8 +147,11 @@ type Dock struct {
 	transport string
 	control   transportStream
 
-	gen              dc.DockGen
-	grantedKeepalive time.Duration
+	gen                dc.DockGen
+	grantedKeepalive   time.Duration
+	serviceLaneProfile string
+	serviceTarget      bool
+	node               bool // opened with dock/3 admission
 
 	drained chan struct{}
 
@@ -173,6 +184,14 @@ func (e ErrOverloaded) Error() string {
 // edge-disclosed generation. ctx bounds connection setup and the control
 // handshake; canceling it after a successful return does not close the dock.
 func Open(ctx context.Context, cfg Config) (*Dock, error) {
+	if cfg.ServiceTargetProfile != "" {
+		if cfg.ServiceTargetProfile != wire.NodeServiceLaneProfile {
+			return nil, errors.New("dock: unsupported service target profile")
+		}
+		if cfg.Admission != nil {
+			return nil, errors.New("dock: service targets require dock/2")
+		}
+	}
 	signerPublic, err := validateDemandAdmission(cfg)
 	if err != nil {
 		return nil, err
@@ -253,6 +272,10 @@ func openDock(ctx context.Context, cfg Config, conn transportConn, transport str
 		_ = abandonTransport(conn, "no welcome")
 		return nil, errors.New("dock: edge sent no welcome")
 	}
+	if cfg.ServiceTargetProfile != "" && welcome.GetServiceLaneProfile() != cfg.ServiceTargetProfile {
+		_ = abandonTransport(conn, "service profile unavailable")
+		return nil, errors.New("dock: requested service target profile is unavailable")
+	}
 	// Disarm opening cancellation before transferring the connection. If the
 	// callback already started, wait for it and refuse the canceled connection.
 	canceling := !stop()
@@ -267,12 +290,15 @@ func openDock(ctx context.Context, cfg Config, conn transportConn, transport str
 	}
 
 	d := &Dock{
-		conn:             conn,
-		transport:        transport,
-		control:          control,
-		gen:              wire.GenFromProtoV2(welcome.GetGen()),
-		grantedKeepalive: time.Duration(welcome.GetKeepaliveMs()) * time.Millisecond,
-		drained:          make(chan struct{}),
+		conn:               conn,
+		transport:          transport,
+		control:            control,
+		gen:                wire.GenFromProtoV2(welcome.GetGen()),
+		grantedKeepalive:   time.Duration(welcome.GetKeepaliveMs()) * time.Millisecond,
+		serviceLaneProfile: welcome.GetServiceLaneProfile(),
+		serviceTarget:      cfg.ServiceTargetProfile != "",
+		node:               cfg.Admission != nil,
+		drained:            make(chan struct{}),
 	}
 	go d.watchControl()
 	if !cfg.DisableKeepalive {
@@ -333,6 +359,7 @@ func writeDockOpening(control transportStream, conn transportConn, cfg Config, p
 	if cfg.Admission == nil {
 		return wire.WriteFrame(control, &dockpb.ClientToEdge{Msg: &dockpb.ClientToEdge_Hello{Hello: &dockpb.DockHello{
 			Contract: "dock/2", KeepaliveMs: cfg.KeepaliveMs, PredecessorGen: predecessor,
+			ServiceTargetProfile: cfg.ServiceTargetProfile,
 		}}})
 	}
 	exporter, err := conn.ExportKeyingMaterial(admissionpb.TLSExporterLabel, []byte{}, admissionpb.TLSExporterBytes)
@@ -447,6 +474,11 @@ func (d *Dock) Gen() dc.DockGen { return d.gen }
 
 // Keepalive is the keepalive cadence the edge granted.
 func (d *Dock) Keepalive() time.Duration { return d.grantedKeepalive }
+
+// ServiceLaneProfile is the profile reported by this dock's authenticated
+// edge. Empty means unavailable. It reports support, never identity, admission
+// or permission to open a lane; OpenServiceLane requires the supported value.
+func (d *Dock) ServiceLaneProfile() string { return d.serviceLaneProfile }
 
 // Resumed reports whether this dock's TLS handshake resumed an earlier
 // session from Config.SessionCache. It is for diagnostics; dock semantics

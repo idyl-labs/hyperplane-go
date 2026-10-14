@@ -26,9 +26,11 @@
 // kind byte 0x02 and then one RequesterToEdge frame, and reads one
 // EdgeToRequester reply. The verbs are SendEvent (one payload, answered by
 // Ack or Nak), OpenRpc (a byte pipe, answered by RpcOpened or Nak) and
-// OpenLane (a lane, answered by LaneOpened or Nak). The target is named by
-// a sealed locator, which is opaque to the requester; the edge unseals it
-// and authorizes the verb before routing it.
+// OpenLane (a lane, answered by LaneOpened or Nak). These targets are named
+// by a sealed locator, which is opaque to the requester; the edge unseals it
+// and authorizes the verb before routing it. The negotiated service-lane
+// profile adds a Node-only request for one exact Service principal and a
+// Service-only withdrawal of its own connection's target eligibility.
 //
 // On the receiving side the edge opens a delivery stream to the target
 // dock: EventPush on a unidirectional stream and RpcOpen on a
@@ -416,9 +418,112 @@ func (x *OpenLane) GetMetadata() []byte {
 	return nil
 }
 
+// OpenServiceLane asks for one STREAM lane from an authenticated dock/3 Node
+// to an eligible connection of this exact Service principal. It requires the
+// negotiated node-service-lanes/1 profile and an explicit Node-only grant,
+// even when scopes match. The fabric authorizes before inspecting target
+// presence and pins the selected connection generation for the lane's life.
+// Only the Node requester initiates new streams. The Service accepts them
+// and may respond on the same bidirectional stream, without reverse opens.
+// This request creates no locator, identity claim or third-party lane.
+type OpenServiceLane struct {
+	state            protoimpl.MessageState `protogen:"open.v1"`
+	ServicePrincipal string                 `protobuf:"bytes,1,opt,name=service_principal,json=servicePrincipal,proto3" json:"service_principal,omitempty"`
+	// Opaque application metadata delivered in LaneAttached, never identity.
+	Metadata      []byte `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *OpenServiceLane) Reset() {
+	*x = OpenServiceLane{}
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[4]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *OpenServiceLane) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*OpenServiceLane) ProtoMessage() {}
+
+func (x *OpenServiceLane) ProtoReflect() protoreflect.Message {
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[4]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use OpenServiceLane.ProtoReflect.Descriptor instead.
+func (*OpenServiceLane) Descriptor() ([]byte, []int) {
+	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{4}
+}
+
+func (x *OpenServiceLane) GetServicePrincipal() string {
+	if x != nil {
+		return x.ServicePrincipal
+	}
+	return ""
+}
+
+func (x *OpenServiceLane) GetMetadata() []byte {
+	if x != nil {
+		return x.Metadata
+	}
+	return nil
+}
+
+// WithdrawServiceTarget removes only the authenticated caller connection's
+// service-target eligibility before Ack. It admits no new lanes afterward;
+// existing lanes remain bound to that connection until their normal end.
+// Other connections with the same Service principal remain independent.
+type WithdrawServiceTarget struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *WithdrawServiceTarget) Reset() {
+	*x = WithdrawServiceTarget{}
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *WithdrawServiceTarget) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*WithdrawServiceTarget) ProtoMessage() {}
+
+func (x *WithdrawServiceTarget) ProtoReflect() protoreflect.Message {
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use WithdrawServiceTarget.ProtoReflect.Descriptor instead.
+func (*WithdrawServiceTarget) Descriptor() ([]byte, []int) {
+	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{5}
+}
+
 // LaneTargetConfirm reports the generation and principal actually
-// attached for one target. The principal is advisory: a lane's ends
-// authenticate each other through their own end-to-end secured channel.
+// attached for one target. OpenServiceLane reports its exact principal with
+// gen absent: the full selected generation remains pinned inside the fabric.
+// The principal is advisory: a lane's ends authenticate each other through
+// their own end-to-end secured channel.
 type LaneTargetConfirm struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Gen           *commonv2.DockGen      `protobuf:"bytes,1,opt,name=gen,proto3" json:"gen,omitempty"`
@@ -429,7 +534,7 @@ type LaneTargetConfirm struct {
 
 func (x *LaneTargetConfirm) Reset() {
 	*x = LaneTargetConfirm{}
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[4]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -441,7 +546,7 @@ func (x *LaneTargetConfirm) String() string {
 func (*LaneTargetConfirm) ProtoMessage() {}
 
 func (x *LaneTargetConfirm) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[4]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -454,7 +559,7 @@ func (x *LaneTargetConfirm) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LaneTargetConfirm.ProtoReflect.Descriptor instead.
 func (*LaneTargetConfirm) Descriptor() ([]byte, []int) {
-	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{4}
+	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *LaneTargetConfirm) GetGen() *commonv2.DockGen {
@@ -472,7 +577,8 @@ func (x *LaneTargetConfirm) GetPrincipal() string {
 }
 
 // LaneOpened confirms a lane. target_confirms aligns one to one with
-// OpenLane.targets.
+// OpenLane.targets. OpenServiceLane returns exactly one confirm with the
+// requested principal and no gen, plus the requester's nonzero lane_id.
 type LaneOpened struct {
 	state protoimpl.MessageState `protogen:"open.v1"`
 	// The lane's id on the requester's own connection, for a lane whose
@@ -486,7 +592,7 @@ type LaneOpened struct {
 
 func (x *LaneOpened) Reset() {
 	*x = LaneOpened{}
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[5]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -498,7 +604,7 @@ func (x *LaneOpened) String() string {
 func (*LaneOpened) ProtoMessage() {}
 
 func (x *LaneOpened) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[5]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -511,7 +617,7 @@ func (x *LaneOpened) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use LaneOpened.ProtoReflect.Descriptor instead.
 func (*LaneOpened) Descriptor() ([]byte, []int) {
-	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{5}
+	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *LaneOpened) GetLaneId() uint64 {
@@ -528,7 +634,9 @@ func (x *LaneOpened) GetTargetConfirms() []*LaneTargetConfirm {
 	return nil
 }
 
-// Ack confirms that a SendEvent payload entered the target dock's stream.
+// Ack confirms that a SendEvent payload entered the target dock's stream,
+// or that WithdrawServiceTarget removed the caller connection's eligibility
+// for new service lanes. Withdrawal does not acknowledge a stream drain.
 type Ack struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	unknownFields protoimpl.UnknownFields
@@ -537,7 +645,7 @@ type Ack struct {
 
 func (x *Ack) Reset() {
 	*x = Ack{}
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[6]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -549,7 +657,7 @@ func (x *Ack) String() string {
 func (*Ack) ProtoMessage() {}
 
 func (x *Ack) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[6]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -562,7 +670,7 @@ func (x *Ack) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Ack.ProtoReflect.Descriptor instead.
 func (*Ack) Descriptor() ([]byte, []int) {
-	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{6}
+	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{8}
 }
 
 // RpcOpened confirms the rpc stream is connected; bytes flow after it.
@@ -574,7 +682,7 @@ type RpcOpened struct {
 
 func (x *RpcOpened) Reset() {
 	*x = RpcOpened{}
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[7]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[9]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -586,7 +694,7 @@ func (x *RpcOpened) String() string {
 func (*RpcOpened) ProtoMessage() {}
 
 func (x *RpcOpened) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[7]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[9]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -599,7 +707,7 @@ func (x *RpcOpened) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RpcOpened.ProtoReflect.Descriptor instead.
 func (*RpcOpened) Descriptor() ([]byte, []int) {
-	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{7}
+	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{9}
 }
 
 // Nak is a typed refusal.
@@ -612,7 +720,7 @@ type Nak struct {
 
 func (x *Nak) Reset() {
 	*x = Nak{}
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[8]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[10]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -624,7 +732,7 @@ func (x *Nak) String() string {
 func (*Nak) ProtoMessage() {}
 
 func (x *Nak) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[8]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[10]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -637,7 +745,7 @@ func (x *Nak) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Nak.ProtoReflect.Descriptor instead.
 func (*Nak) Descriptor() ([]byte, []int) {
-	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{8}
+	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{10}
 }
 
 func (x *Nak) GetCode() NakCode {
@@ -655,6 +763,8 @@ type RequesterToEdge struct {
 	//	*RequesterToEdge_SendEvent
 	//	*RequesterToEdge_OpenRpc
 	//	*RequesterToEdge_OpenLane
+	//	*RequesterToEdge_OpenServiceLane
+	//	*RequesterToEdge_WithdrawServiceTarget
 	Msg           isRequesterToEdge_Msg `protobuf_oneof:"msg"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -662,7 +772,7 @@ type RequesterToEdge struct {
 
 func (x *RequesterToEdge) Reset() {
 	*x = RequesterToEdge{}
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[9]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[11]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -674,7 +784,7 @@ func (x *RequesterToEdge) String() string {
 func (*RequesterToEdge) ProtoMessage() {}
 
 func (x *RequesterToEdge) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[9]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[11]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -687,7 +797,7 @@ func (x *RequesterToEdge) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RequesterToEdge.ProtoReflect.Descriptor instead.
 func (*RequesterToEdge) Descriptor() ([]byte, []int) {
-	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{9}
+	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{11}
 }
 
 func (x *RequesterToEdge) GetMsg() isRequesterToEdge_Msg {
@@ -724,6 +834,24 @@ func (x *RequesterToEdge) GetOpenLane() *OpenLane {
 	return nil
 }
 
+func (x *RequesterToEdge) GetOpenServiceLane() *OpenServiceLane {
+	if x != nil {
+		if x, ok := x.Msg.(*RequesterToEdge_OpenServiceLane); ok {
+			return x.OpenServiceLane
+		}
+	}
+	return nil
+}
+
+func (x *RequesterToEdge) GetWithdrawServiceTarget() *WithdrawServiceTarget {
+	if x != nil {
+		if x, ok := x.Msg.(*RequesterToEdge_WithdrawServiceTarget); ok {
+			return x.WithdrawServiceTarget
+		}
+	}
+	return nil
+}
+
 type isRequesterToEdge_Msg interface {
 	isRequesterToEdge_Msg()
 }
@@ -740,11 +868,23 @@ type RequesterToEdge_OpenLane struct {
 	OpenLane *OpenLane `protobuf:"bytes,4,opt,name=open_lane,json=openLane,proto3,oneof"`
 }
 
+type RequesterToEdge_OpenServiceLane struct {
+	OpenServiceLane *OpenServiceLane `protobuf:"bytes,5,opt,name=open_service_lane,json=openServiceLane,proto3,oneof"`
+}
+
+type RequesterToEdge_WithdrawServiceTarget struct {
+	WithdrawServiceTarget *WithdrawServiceTarget `protobuf:"bytes,6,opt,name=withdraw_service_target,json=withdrawServiceTarget,proto3,oneof"`
+}
+
 func (*RequesterToEdge_SendEvent) isRequesterToEdge_Msg() {}
 
 func (*RequesterToEdge_OpenRpc) isRequesterToEdge_Msg() {}
 
 func (*RequesterToEdge_OpenLane) isRequesterToEdge_Msg() {}
+
+func (*RequesterToEdge_OpenServiceLane) isRequesterToEdge_Msg() {}
+
+func (*RequesterToEdge_WithdrawServiceTarget) isRequesterToEdge_Msg() {}
 
 // EdgeToRequester is the edge's reply to the verb.
 type EdgeToRequester struct {
@@ -762,7 +902,7 @@ type EdgeToRequester struct {
 
 func (x *EdgeToRequester) Reset() {
 	*x = EdgeToRequester{}
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[10]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[12]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -774,7 +914,7 @@ func (x *EdgeToRequester) String() string {
 func (*EdgeToRequester) ProtoMessage() {}
 
 func (x *EdgeToRequester) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[10]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[12]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -787,7 +927,7 @@ func (x *EdgeToRequester) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EdgeToRequester.ProtoReflect.Descriptor instead.
 func (*EdgeToRequester) Descriptor() ([]byte, []int) {
-	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{10}
+	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{12}
 }
 
 func (x *EdgeToRequester) GetMsg() isEdgeToRequester_Msg {
@@ -874,7 +1014,7 @@ type EventPush struct {
 
 func (x *EventPush) Reset() {
 	*x = EventPush{}
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[11]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[13]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -886,7 +1026,7 @@ func (x *EventPush) String() string {
 func (*EventPush) ProtoMessage() {}
 
 func (x *EventPush) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[11]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[13]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -899,7 +1039,7 @@ func (x *EventPush) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use EventPush.ProtoReflect.Descriptor instead.
 func (*EventPush) Descriptor() ([]byte, []int) {
-	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{11}
+	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{13}
 }
 
 func (x *EventPush) GetPayload() []byte {
@@ -922,7 +1062,7 @@ type RpcOpen struct {
 
 func (x *RpcOpen) Reset() {
 	*x = RpcOpen{}
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[12]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[14]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -934,7 +1074,7 @@ func (x *RpcOpen) String() string {
 func (*RpcOpen) ProtoMessage() {}
 
 func (x *RpcOpen) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[12]
+	mi := &file_idyl_delivery_v2_delivery_proto_msgTypes[14]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -947,7 +1087,7 @@ func (x *RpcOpen) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use RpcOpen.ProtoReflect.Descriptor instead.
 func (*RpcOpen) Descriptor() ([]byte, []int) {
-	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{12}
+	return file_idyl_delivery_v2_delivery_proto_rawDescGZIP(), []int{14}
 }
 
 func (x *RpcOpen) GetMetadata() []byte {
@@ -978,7 +1118,11 @@ const file_idyl_delivery_v2_delivery_proto_rawDesc = "" +
 	"\atargets\x18\x01 \x03(\v2\x1c.idyl.delivery.v2.LaneTargetR\atargets\x12\x1d\n" +
 	"\n" +
 	"lane_class\x18\x02 \x01(\x04R\tlaneClass\x12\x1a\n" +
-	"\bmetadata\x18\x03 \x01(\fR\bmetadataJ\x04\b\x04\x10\x05R\x0fcandidate_offer\"`\n" +
+	"\bmetadata\x18\x03 \x01(\fR\bmetadataJ\x04\b\x04\x10\x05R\x0fcandidate_offer\"Z\n" +
+	"\x0fOpenServiceLane\x12+\n" +
+	"\x11service_principal\x18\x01 \x01(\tR\x10servicePrincipal\x12\x1a\n" +
+	"\bmetadata\x18\x02 \x01(\fR\bmetadata\"\x17\n" +
+	"\x15WithdrawServiceTarget\"`\n" +
 	"\x11LaneTargetConfirm\x12-\n" +
 	"\x03gen\x18\x01 \x01(\v2\x1b.idyl.membership.v2.DockGenR\x03gen\x12\x1c\n" +
 	"\tprincipal\x18\x02 \x01(\tR\tprincipal\"\x8b\x01\n" +
@@ -989,12 +1133,14 @@ const file_idyl_delivery_v2_delivery_proto_rawDesc = "" +
 	"\x03Ack\"\v\n" +
 	"\tRpcOpened\"4\n" +
 	"\x03Nak\x12-\n" +
-	"\x04code\x18\x01 \x01(\x0e2\x19.idyl.delivery.v2.NakCodeR\x04code\"\xdc\x01\n" +
+	"\x04code\x18\x01 \x01(\x0e2\x19.idyl.delivery.v2.NakCodeR\x04code\"\x90\x03\n" +
 	"\x0fRequesterToEdge\x12<\n" +
 	"\n" +
 	"send_event\x18\x01 \x01(\v2\x1b.idyl.delivery.v2.SendEventH\x00R\tsendEvent\x126\n" +
 	"\bopen_rpc\x18\x02 \x01(\v2\x19.idyl.delivery.v2.OpenRpcH\x00R\aopenRpc\x129\n" +
-	"\topen_lane\x18\x04 \x01(\v2\x1a.idyl.delivery.v2.OpenLaneH\x00R\bopenLaneB\x05\n" +
+	"\topen_lane\x18\x04 \x01(\v2\x1a.idyl.delivery.v2.OpenLaneH\x00R\bopenLane\x12O\n" +
+	"\x11open_service_lane\x18\x05 \x01(\v2!.idyl.delivery.v2.OpenServiceLaneH\x00R\x0fopenServiceLane\x12a\n" +
+	"\x17withdraw_service_target\x18\x06 \x01(\v2'.idyl.delivery.v2.WithdrawServiceTargetH\x00R\x15withdrawServiceTargetB\x05\n" +
 	"\x03msgJ\x04\b\x03\x10\x04R\vopen_splice\"\x87\x02\n" +
 	"\x0fEdgeToRequester\x12)\n" +
 	"\x03ack\x18\x01 \x01(\v2\x15.idyl.delivery.v2.AckH\x00R\x03ack\x12)\n" +
@@ -1042,44 +1188,48 @@ func file_idyl_delivery_v2_delivery_proto_rawDescGZIP() []byte {
 }
 
 var file_idyl_delivery_v2_delivery_proto_enumTypes = make([]protoimpl.EnumInfo, 1)
-var file_idyl_delivery_v2_delivery_proto_msgTypes = make([]protoimpl.MessageInfo, 13)
+var file_idyl_delivery_v2_delivery_proto_msgTypes = make([]protoimpl.MessageInfo, 15)
 var file_idyl_delivery_v2_delivery_proto_goTypes = []any{
-	(NakCode)(0),               // 0: idyl.delivery.v2.NakCode
-	(*SendEvent)(nil),          // 1: idyl.delivery.v2.SendEvent
-	(*OpenRpc)(nil),            // 2: idyl.delivery.v2.OpenRpc
-	(*LaneTarget)(nil),         // 3: idyl.delivery.v2.LaneTarget
-	(*OpenLane)(nil),           // 4: idyl.delivery.v2.OpenLane
-	(*LaneTargetConfirm)(nil),  // 5: idyl.delivery.v2.LaneTargetConfirm
-	(*LaneOpened)(nil),         // 6: idyl.delivery.v2.LaneOpened
-	(*Ack)(nil),                // 7: idyl.delivery.v2.Ack
-	(*RpcOpened)(nil),          // 8: idyl.delivery.v2.RpcOpened
-	(*Nak)(nil),                // 9: idyl.delivery.v2.Nak
-	(*RequesterToEdge)(nil),    // 10: idyl.delivery.v2.RequesterToEdge
-	(*EdgeToRequester)(nil),    // 11: idyl.delivery.v2.EdgeToRequester
-	(*EventPush)(nil),          // 12: idyl.delivery.v2.EventPush
-	(*RpcOpen)(nil),            // 13: idyl.delivery.v2.RpcOpen
-	(*commonv2.DockGen)(nil),   // 14: idyl.membership.v2.DockGen
-	(commonv2.EndpointKind)(0), // 15: idyl.membership.v2.EndpointKind
+	(NakCode)(0),                  // 0: idyl.delivery.v2.NakCode
+	(*SendEvent)(nil),             // 1: idyl.delivery.v2.SendEvent
+	(*OpenRpc)(nil),               // 2: idyl.delivery.v2.OpenRpc
+	(*LaneTarget)(nil),            // 3: idyl.delivery.v2.LaneTarget
+	(*OpenLane)(nil),              // 4: idyl.delivery.v2.OpenLane
+	(*OpenServiceLane)(nil),       // 5: idyl.delivery.v2.OpenServiceLane
+	(*WithdrawServiceTarget)(nil), // 6: idyl.delivery.v2.WithdrawServiceTarget
+	(*LaneTargetConfirm)(nil),     // 7: idyl.delivery.v2.LaneTargetConfirm
+	(*LaneOpened)(nil),            // 8: idyl.delivery.v2.LaneOpened
+	(*Ack)(nil),                   // 9: idyl.delivery.v2.Ack
+	(*RpcOpened)(nil),             // 10: idyl.delivery.v2.RpcOpened
+	(*Nak)(nil),                   // 11: idyl.delivery.v2.Nak
+	(*RequesterToEdge)(nil),       // 12: idyl.delivery.v2.RequesterToEdge
+	(*EdgeToRequester)(nil),       // 13: idyl.delivery.v2.EdgeToRequester
+	(*EventPush)(nil),             // 14: idyl.delivery.v2.EventPush
+	(*RpcOpen)(nil),               // 15: idyl.delivery.v2.RpcOpen
+	(*commonv2.DockGen)(nil),      // 16: idyl.membership.v2.DockGen
+	(commonv2.EndpointKind)(0),    // 17: idyl.membership.v2.EndpointKind
 }
 var file_idyl_delivery_v2_delivery_proto_depIdxs = []int32{
-	14, // 0: idyl.delivery.v2.LaneTarget.expected_gen:type_name -> idyl.membership.v2.DockGen
-	15, // 1: idyl.delivery.v2.LaneTarget.expected_kind:type_name -> idyl.membership.v2.EndpointKind
+	16, // 0: idyl.delivery.v2.LaneTarget.expected_gen:type_name -> idyl.membership.v2.DockGen
+	17, // 1: idyl.delivery.v2.LaneTarget.expected_kind:type_name -> idyl.membership.v2.EndpointKind
 	3,  // 2: idyl.delivery.v2.OpenLane.targets:type_name -> idyl.delivery.v2.LaneTarget
-	14, // 3: idyl.delivery.v2.LaneTargetConfirm.gen:type_name -> idyl.membership.v2.DockGen
-	5,  // 4: idyl.delivery.v2.LaneOpened.target_confirms:type_name -> idyl.delivery.v2.LaneTargetConfirm
+	16, // 3: idyl.delivery.v2.LaneTargetConfirm.gen:type_name -> idyl.membership.v2.DockGen
+	7,  // 4: idyl.delivery.v2.LaneOpened.target_confirms:type_name -> idyl.delivery.v2.LaneTargetConfirm
 	0,  // 5: idyl.delivery.v2.Nak.code:type_name -> idyl.delivery.v2.NakCode
 	1,  // 6: idyl.delivery.v2.RequesterToEdge.send_event:type_name -> idyl.delivery.v2.SendEvent
 	2,  // 7: idyl.delivery.v2.RequesterToEdge.open_rpc:type_name -> idyl.delivery.v2.OpenRpc
 	4,  // 8: idyl.delivery.v2.RequesterToEdge.open_lane:type_name -> idyl.delivery.v2.OpenLane
-	7,  // 9: idyl.delivery.v2.EdgeToRequester.ack:type_name -> idyl.delivery.v2.Ack
-	9,  // 10: idyl.delivery.v2.EdgeToRequester.nak:type_name -> idyl.delivery.v2.Nak
-	8,  // 11: idyl.delivery.v2.EdgeToRequester.rpc_opened:type_name -> idyl.delivery.v2.RpcOpened
-	6,  // 12: idyl.delivery.v2.EdgeToRequester.lane_opened:type_name -> idyl.delivery.v2.LaneOpened
-	13, // [13:13] is the sub-list for method output_type
-	13, // [13:13] is the sub-list for method input_type
-	13, // [13:13] is the sub-list for extension type_name
-	13, // [13:13] is the sub-list for extension extendee
-	0,  // [0:13] is the sub-list for field type_name
+	5,  // 9: idyl.delivery.v2.RequesterToEdge.open_service_lane:type_name -> idyl.delivery.v2.OpenServiceLane
+	6,  // 10: idyl.delivery.v2.RequesterToEdge.withdraw_service_target:type_name -> idyl.delivery.v2.WithdrawServiceTarget
+	9,  // 11: idyl.delivery.v2.EdgeToRequester.ack:type_name -> idyl.delivery.v2.Ack
+	11, // 12: idyl.delivery.v2.EdgeToRequester.nak:type_name -> idyl.delivery.v2.Nak
+	10, // 13: idyl.delivery.v2.EdgeToRequester.rpc_opened:type_name -> idyl.delivery.v2.RpcOpened
+	8,  // 14: idyl.delivery.v2.EdgeToRequester.lane_opened:type_name -> idyl.delivery.v2.LaneOpened
+	15, // [15:15] is the sub-list for method output_type
+	15, // [15:15] is the sub-list for method input_type
+	15, // [15:15] is the sub-list for extension type_name
+	15, // [15:15] is the sub-list for extension extendee
+	0,  // [0:15] is the sub-list for field type_name
 }
 
 func init() { file_idyl_delivery_v2_delivery_proto_init() }
@@ -1087,12 +1237,14 @@ func file_idyl_delivery_v2_delivery_proto_init() {
 	if File_idyl_delivery_v2_delivery_proto != nil {
 		return
 	}
-	file_idyl_delivery_v2_delivery_proto_msgTypes[9].OneofWrappers = []any{
+	file_idyl_delivery_v2_delivery_proto_msgTypes[11].OneofWrappers = []any{
 		(*RequesterToEdge_SendEvent)(nil),
 		(*RequesterToEdge_OpenRpc)(nil),
 		(*RequesterToEdge_OpenLane)(nil),
+		(*RequesterToEdge_OpenServiceLane)(nil),
+		(*RequesterToEdge_WithdrawServiceTarget)(nil),
 	}
-	file_idyl_delivery_v2_delivery_proto_msgTypes[10].OneofWrappers = []any{
+	file_idyl_delivery_v2_delivery_proto_msgTypes[12].OneofWrappers = []any{
 		(*EdgeToRequester_Ack)(nil),
 		(*EdgeToRequester_Nak)(nil),
 		(*EdgeToRequester_RpcOpened)(nil),
@@ -1104,7 +1256,7 @@ func file_idyl_delivery_v2_delivery_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_idyl_delivery_v2_delivery_proto_rawDesc), len(file_idyl_delivery_v2_delivery_proto_rawDesc)),
 			NumEnums:      1,
-			NumMessages:   13,
+			NumMessages:   15,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
