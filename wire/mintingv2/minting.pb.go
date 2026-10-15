@@ -131,8 +131,13 @@ type MintSessionSvidRequest struct {
 	// encoding, so two requests that differ only in it are different
 	// requests.
 	MicropodSequence uint64 `protobuf:"varint,9,opt,name=micropod_sequence,json=micropodSequence,proto3" json:"micropod_sequence,omitempty"`
-	unknownFields    protoimpl.UnknownFields
-	sizeCache        protoimpl.SizeCache
+	// Zero retains the fixed session's single authoritative request per leg.
+	// Positive generations identify renewable managed Micropod exec credentials;
+	// the authenticated admitting service attests the generation, never a Node
+	// or end user. A generation is immutable once either leg has been issued.
+	CredentialGeneration uint64 `protobuf:"varint,10,opt,name=credential_generation,json=credentialGeneration,proto3" json:"credential_generation,omitempty"`
+	unknownFields        protoimpl.UnknownFields
+	sizeCache            protoimpl.SizeCache
 }
 
 func (x *MintSessionSvidRequest) Reset() {
@@ -224,6 +229,13 @@ func (x *MintSessionSvidRequest) GetExpiresAtUnixS() uint64 {
 func (x *MintSessionSvidRequest) GetMicropodSequence() uint64 {
 	if x != nil {
 		return x.MicropodSequence
+	}
+	return 0
+}
+
+func (x *MintSessionSvidRequest) GetCredentialGeneration() uint64 {
+	if x != nil {
+		return x.CredentialGeneration
 	}
 	return 0
 }
@@ -586,7 +598,7 @@ const file_idyl_minting_v2_minting_proto_rawDesc = "" +
 	"\x12MintPodSvidRequest\x12\x17\n" +
 	"\acsr_der\x18\x01 \x01(\fR\x06csrDer\x12\x15\n" +
 	"\x06pod_id\x18\x02 \x01(\tR\x05podId\x123\n" +
-	"\x15assignment_generation\x18\x03 \x01(\x03R\x14assignmentGeneration\"\x94\x03\n" +
+	"\x15assignment_generation\x18\x03 \x01(\x03R\x14assignmentGeneration\"\xc9\x03\n" +
 	"\x16MintSessionSvidRequest\x12\x17\n" +
 	"\acsr_der\x18\x01 \x01(\fR\x06csrDer\x12\x1d\n" +
 	"\n" +
@@ -598,7 +610,9 @@ const file_idyl_minting_v2_minting_proto_rawDesc = "" +
 	"\x15assignment_generation\x18\x06 \x01(\x03R\x14assignmentGeneration\x12\x19\n" +
 	"\bgrant_id\x18\a \x01(\tR\agrantId\x12)\n" +
 	"\x11expires_at_unix_s\x18\b \x01(\x04R\x0eexpiresAtUnixS\x12+\n" +
-	"\x11micropod_sequence\x18\t \x01(\x04R\x10micropodSequence\"\xc7\x01\n" +
+	"\x11micropod_sequence\x18\t \x01(\x04R\x10micropodSequence\x123\n" +
+	"\x15credential_generation\x18\n" +
+	" \x01(\x04R\x14credentialGeneration\"\xc7\x01\n" +
 	"\x17PodCredentialGeneration\x12\x19\n" +
 	"\bcert_der\x18\x01 \x03(\fR\acertDer\x12%\n" +
 	"\x0elease_envelope\x18\x02 \x01(\fR\rleaseEnvelope\x12%\n" +

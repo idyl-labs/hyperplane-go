@@ -59,6 +59,11 @@ message MintSessionSvidRequest {
   // encoding, so two requests that differ only in it are different
   // requests.
   uint64 micropod_sequence = 9;
+  // Zero retains the fixed session's single authoritative request per leg.
+  // Positive generations identify renewable managed Micropod exec credentials;
+  // the authenticated admitting service attests the generation, never a Node
+  // or end user. A generation is immutable once either leg has been issued.
+  uint64 credential_generation = 10;
 }
 
 // PodCredentialGeneration is a successful Pod mint.
