@@ -149,6 +149,10 @@ func build() (*conformance.Corpus, error) {
 	if err != nil {
 		return nil, err
 	}
+	dataDockPayloadBytes, err := wire.MarshalZoneAdmissionLeasePayload(dataDockPayload())
+	if err != nil {
+		return nil, err
+	}
 	sessionPayloadBytes, err := wire.MarshalZoneAdmissionLeasePayload(sessionPayload())
 	if err != nil {
 		return nil, err
@@ -170,6 +174,10 @@ func build() (*conformance.Corpus, error) {
 		return nil, err
 	}
 	validShare, err := dataSigner.SignLeasePayloadBytes(sharePayloadBytes)
+	if err != nil {
+		return nil, err
+	}
+	validDataDock, err := dataSigner.SignLeasePayloadBytes(dataDockPayloadBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -216,6 +224,12 @@ func build() (*conformance.Corpus, error) {
 			name:        "valid-share-data-plane",
 			description: "complete share lease: two-segment principal, owner scope and share ID only",
 			envelope:    validShare, expectedURI: dataURI, bundle: bundle, now: clockUnixS,
+			wantVerdict: "valid",
+		},
+		{
+			name:        "valid-data-dock-data-plane",
+			description: "complete Node data dock lease: three-segment principal, owner scope, Node ID and a STREAM ceiling only",
+			envelope:    validDataDock, expectedURI: dataURI, bundle: bundle, now: clockUnixS,
 			wantVerdict: "valid",
 		},
 		{
@@ -340,6 +354,12 @@ func build() (*conformance.Corpus, error) {
 	}
 	drafts = append(drafts, shareDrafts...)
 
+	dataDockDrafts, err := dataDockShapeDrafts(dataSigner, dataURI, bundle)
+	if err != nil {
+		return nil, err
+	}
+	drafts = append(drafts, dataDockDrafts...)
+
 	micropodDrafts, err := micropodShapeDrafts(dataSigner, dataURI, bundle)
 	if err != nil {
 		return nil, err
@@ -453,6 +473,51 @@ func shareShapeDrafts(signer *svidtest.SignerIdentity, dataURI string, bundle []
 	drafts := make([]draft, 0, len(rows))
 	for _, row := range rows {
 		payload := sharePayload()
+		row.mutate(payload)
+		d, err := malformedDraft(signer, payload, row.name, row.description, dataURI, bundle)
+		if err != nil {
+			return nil, err
+		}
+		drafts = append(drafts, d)
+	}
+	return drafts, nil
+}
+
+// dataDockShapeDrafts covers the Node data dock lease profile: the principal
+// is exactly /node/{nodeID}/data-dock, node_id matches it, no other kind's
+// field is present, the plane is data, the lane ceiling is STREAM alone, and
+// the interval is at most twenty-four hours.
+func dataDockShapeDrafts(signer *svidtest.SignerIdentity, dataURI string, bundle []*x509.Certificate) ([]draft, error) {
+	rows := []struct {
+		name        string
+		description string
+		mutate      func(p *apb.ZoneAdmissionLeasePayload)
+	}{
+		{"data-dock-node-principal-mismatch", "node_id disagrees with the principal's node segment",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.NodeId = "node-other" }},
+		{"data-dock-node-absent", "the Node ID is required",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.NodeId = "" }},
+		{"data-dock-principal-with-subnet", "a data dock principal names no subnet",
+			func(p *apb.ZoneAdmissionLeasePayload) {
+				p.Principal = "spiffe://z1.zone.example.com/subnet/subnet-1/node/node-1/data-dock"
+			}},
+		{"data-dock-carries-subnet", "a data dock lease carries no subnet, account, pod or session fact",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.SubnetId = "subnet-1" }},
+		{"data-dock-node-admission", "a node admission fact belongs to a Node lease",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.NodeAdmission = apb.NodeAdmission_NODE_ADMISSION_PROVIDER }},
+		{"data-dock-flow-ceiling", "a data dock is a lane target of STREAM lanes alone",
+			func(p *apb.ZoneAdmissionLeasePayload) {
+				p.AdapterClasses = wire.LaneClassStream | wire.LaneClassFlow
+				p.LaneClassCeiling = wire.LaneClassStream | wire.LaneClassFlow
+			}},
+		{"data-dock-control-plane", "a data dock is a data-plane endpoint",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.FabricPlane = mpb.Plane_PLANE_CONTROL }},
+		{"data-dock-over-a-day", "a data dock interval is at most twenty-four hours",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.NotAfterUnixS = p.IssuedAtUnixS + 86_401 }},
+	}
+	drafts := make([]draft, 0, len(rows))
+	for _, row := range rows {
+		payload := dataDockPayload()
 		row.mutate(payload)
 		d, err := malformedDraft(signer, payload, row.name, row.description, dataURI, bundle)
 		if err != nil {
@@ -651,6 +716,27 @@ func micropodShellProxyPayload() *apb.ZoneAdmissionLeasePayload {
 	payload.GrantId = "grant-1"
 	payload.Principal = micropodSessionPrincipal("7", "shell", "proxy")
 	return payload
+}
+
+func dataDockPayload() *apb.ZoneAdmissionLeasePayload {
+	return &apb.ZoneAdmissionLeasePayload{
+		Version:              apb.PayloadVersion,
+		LeaseId:              bytes.Repeat([]byte{4}, apb.LeaseIDBytes),
+		Zone:                 "z1",
+		FabricPlane:          mpb.Plane_PLANE_DATA,
+		Principal:            "spiffe://z1.zone.example.com/node/node-1/data-dock",
+		SubjectSpkiSha256:    bytes.Repeat([]byte{7}, apb.SHA256Bytes),
+		EndpointKind:         mpb.EndpointKind_ENDPOINT_KIND_DATA_DOCK,
+		OwnerScope:           "data-dock",
+		NodeId:               "node-1",
+		AdapterClasses:       wire.LaneClassStream,
+		LaneClassCeiling:     wire.LaneClassStream,
+		PolicyProfile:        "data-dock-default",
+		PolicyProfileVersion: 1,
+		NotBeforeUnixS:       1_700_000_000,
+		NotAfterUnixS:        1_700_003_660,
+		IssuedAtUnixS:        1_700_000_060,
+	}
 }
 
 func sharePayload() *apb.ZoneAdmissionLeasePayload {

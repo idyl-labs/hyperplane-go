@@ -12,8 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package mintingv2 defines the credential mint records for pods and
-// sessions, with validators for each record.
+// Package mintingv2 defines the credential mint records for pods, sessions
+// and Node data docks, with validators for each record.
 //
 // A mint is atomic: a successful reply carries the X.509-SVID chain, the
 // exact ZoneAdmissionLease envelope that admits it, and the trust snapshot
@@ -41,15 +41,22 @@ import (
 // Envelope type names for the mint records, and the size bounds every
 // validator in this package enforces.
 const (
-	EnvelopeTypeMintPodSvid          = "mint_pod_svid_v2_request"
-	EnvelopeTypeMintPodSvidReply     = "mint_pod_svid_v2_response"
-	EnvelopeTypeMintSessionSvid      = "mint_session_svid_request"
-	EnvelopeTypeMintSessionSvidReply = "mint_session_svid_response"
+	EnvelopeTypeMintPodSvid           = "mint_pod_svid_v2_request"
+	EnvelopeTypeMintPodSvidReply      = "mint_pod_svid_v2_response"
+	EnvelopeTypeMintSessionSvid       = "mint_session_svid_request"
+	EnvelopeTypeMintSessionSvidReply  = "mint_session_svid_response"
+	EnvelopeTypeMintDataDockSvid      = "mint_data_dock_svid_request"
+	EnvelopeTypeMintDataDockSvidReply = "mint_data_dock_svid_response"
 
 	MaxCSRDERBytes         = 16 * 1024
 	MaxCertificateDERBytes = 16 * 1024
 	MaxCertificateChain    = 4
 	MaxRefusalCodeBytes    = 64
+	// MaxEdgeEndpointBytes bounds a data dock's edge address, host:port.
+	MaxEdgeEndpointBytes = 255
+	// MaxEdgeRoots bounds the CA certificates a data dock verifies its edge
+	// against.
+	MaxEdgeRoots = 8
 )
 
 // Carrier preserves a record's canonical bytes inside an outer JSON
@@ -116,6 +123,74 @@ func ValidateMintSessionSvidRequest(request *MintSessionSvidRequest) error {
 		return fmt.Errorf("mintingv2: renewable credentials require a Micropod exec session")
 	}
 	return rejectUnknown(request)
+}
+
+// ValidateMintDataDockSvidRequest checks a data dock mint request: one
+// bounded CSR and nothing else. The data dock's identity is the issuer's to
+// derive from the Node the request arrives from.
+func ValidateMintDataDockSvidRequest(request *MintDataDockSvidRequest) error {
+	if request == nil || len(request.GetCsrDer()) == 0 || len(request.GetCsrDer()) > MaxCSRDERBytes {
+		return fmt.Errorf("mintingv2: invalid data dock mint request")
+	}
+	return rejectUnknown(request)
+}
+
+// ValidateDataDockCredentialGeneration checks a successful data dock mint:
+// a bounded certificate chain and lease envelope, a renewal instant strictly
+// inside the credential interval [notBeforeUnixS, notAfterUnixS], the edge
+// as host:port, its exact SPIFFE ID, and one to MaxEdgeRoots CA
+// certificates that verify as certificates.
+func ValidateDataDockCredentialGeneration(generation *DataDockCredentialGeneration, notBeforeUnixS, notAfterUnixS uint64) error {
+	if generation == nil {
+		return fmt.Errorf("mintingv2: data dock credential generation absent")
+	}
+	if err := validateChainAndLease(generation.GetCertDer(), generation.GetLeaseEnvelope()); err != nil {
+		return err
+	}
+	if generation.GetRenewAtUnixS() <= notBeforeUnixS || generation.GetRenewAtUnixS() >= notAfterUnixS {
+		return fmt.Errorf("mintingv2: renewal instant is outside credential interval")
+	}
+	if host, port, ok := strings.Cut(generation.GetEdgeEndpoint(), ":"); !ok || host == "" || port == "" ||
+		!validText(generation.GetEdgeEndpoint(), MaxEdgeEndpointBytes) {
+		return fmt.Errorf("mintingv2: data dock edge endpoint is not host:port")
+	}
+	if !strings.HasPrefix(generation.GetEdgePrincipal(), "spiffe://") ||
+		!validText(generation.GetEdgePrincipal(), admissionv3.MaxPrincipalBytes) {
+		return fmt.Errorf("mintingv2: data dock edge principal is not a SPIFFE ID")
+	}
+	roots := generation.GetEdgeRootsDer()
+	if len(roots) == 0 || len(roots) > MaxEdgeRoots {
+		return fmt.Errorf("mintingv2: data dock edge roots count %d", len(roots))
+	}
+	for i, root := range roots {
+		if len(root) == 0 || len(root) > MaxCertificateDERBytes {
+			return fmt.Errorf("mintingv2: edge root %d size %d", i, len(root))
+		}
+		if _, err := x509.ParseCertificate(root); err != nil {
+			return fmt.Errorf("mintingv2: edge root %d: %w", i, err)
+		}
+	}
+	return rejectUnknown(generation)
+}
+
+// ValidateMintDataDockSvidReply checks a data dock mint reply, which carries
+// exactly one verdict: a credential generation, validated as by
+// ValidateDataDockCredentialGeneration, or a refusal.
+func ValidateMintDataDockSvidReply(reply *MintDataDockSvidReply, notBeforeUnixS, notAfterUnixS uint64) error {
+	if reply == nil {
+		return fmt.Errorf("mintingv2: data dock mint reply absent")
+	}
+	if err := rejectUnknown(reply); err != nil {
+		return err
+	}
+	switch verdict := reply.GetVerdict().(type) {
+	case *MintDataDockSvidReply_Generation:
+		return ValidateDataDockCredentialGeneration(verdict.Generation, notBeforeUnixS, notAfterUnixS)
+	case *MintDataDockSvidReply_Refusal:
+		return validateRefusal(verdict.Refusal)
+	default:
+		return fmt.Errorf("mintingv2: data dock mint reply has no verdict")
+	}
 }
 
 // ValidatePodCredentialGeneration checks a successful pod mint: a bounded

@@ -123,3 +123,51 @@ func TestMintingV2SessionRequestProfiles(t *testing.T) {
 		t.Fatal("unknown session kind must refuse")
 	}
 }
+
+// TestMintingV2DataDockGenerations checks the data dock mint: a request
+// carries only its CSR, and a generation is accepted only with its chain,
+// lease, renewal inside the interval, and a complete description of the edge
+// it docks to.
+func TestMintingV2DataDockGenerations(t *testing.T) {
+	if err := mintpb.ValidateMintDataDockSvidRequest(&mintpb.MintDataDockSvidRequest{CsrDer: []byte{1}}); err != nil {
+		t.Fatalf("honest data dock request refused: %v", err)
+	}
+	if err := mintpb.ValidateMintDataDockSvidRequest(&mintpb.MintDataDockSvidRequest{}); err == nil {
+		t.Fatal("data dock request without a CSR must refuse")
+	}
+	_, leafDER, leaf := testPodTrustPair(t)
+	notBefore, notAfter := uint64(leaf.NotBefore.Unix()), uint64(leaf.NotAfter.Unix())
+	generation := &mintpb.DataDockCredentialGeneration{
+		CertDer:       [][]byte{leafDER},
+		LeaseEnvelope: []byte{0x55},
+		RenewAtUnixS:  uint64(trustTestNow.Add(6 * time.Hour).Unix()),
+		EdgeEndpoint:  "data.zone-a.example.org:443",
+		EdgePrincipal: "spiffe://zone-a.zone.example.org/fabric/data",
+		EdgeRootsDer:  [][]byte{leafDER},
+	}
+	if err := mintpb.ValidateDataDockCredentialGeneration(generation, notBefore, notAfter); err != nil {
+		t.Fatalf("honest data dock generation refused: %v", err)
+	}
+	reply := &mintpb.MintDataDockSvidReply{Verdict: &mintpb.MintDataDockSvidReply_Generation{Generation: generation}}
+	if err := mintpb.ValidateMintDataDockSvidReply(reply, notBefore, notAfter); err != nil {
+		t.Fatalf("honest data dock reply refused: %v", err)
+	}
+	for _, row := range []struct {
+		name string
+		mut  func(*mintpb.DataDockCredentialGeneration)
+	}{
+		{"missing chain", func(g *mintpb.DataDockCredentialGeneration) { g.CertDer = nil }},
+		{"missing lease", func(g *mintpb.DataDockCredentialGeneration) { g.LeaseEnvelope = nil }},
+		{"renewal at expiry", func(g *mintpb.DataDockCredentialGeneration) { g.RenewAtUnixS = notAfter }},
+		{"endpoint without port", func(g *mintpb.DataDockCredentialGeneration) { g.EdgeEndpoint = "data.zone-a.example.org" }},
+		{"edge not SPIFFE", func(g *mintpb.DataDockCredentialGeneration) { g.EdgePrincipal = "https://data.zone-a.example.org" }},
+		{"no edge roots", func(g *mintpb.DataDockCredentialGeneration) { g.EdgeRootsDer = nil }},
+		{"edge root not a certificate", func(g *mintpb.DataDockCredentialGeneration) { g.EdgeRootsDer = [][]byte{{1, 2, 3}} }},
+	} {
+		got := proto.Clone(generation).(*mintpb.DataDockCredentialGeneration)
+		row.mut(got)
+		if err := mintpb.ValidateDataDockCredentialGeneration(got, notBefore, notAfter); err == nil {
+			t.Errorf("%s must refuse", row.name)
+		}
+	}
+}

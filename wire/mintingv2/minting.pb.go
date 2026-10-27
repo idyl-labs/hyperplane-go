@@ -241,6 +241,53 @@ func (x *MintSessionSvidRequest) GetCredentialGeneration() uint64 {
 }
 
 // PodCredentialGeneration is a successful Pod mint.
+// MintDataDockSvidRequest asks for a credential generation for a Node's data
+// dock. It carries only the CSR: the issuer derives the data dock's identity
+// from the Node the request arrives from, never from the request.
+type MintDataDockSvidRequest struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CsrDer        []byte                 `protobuf:"bytes,1,opt,name=csr_der,json=csrDer,proto3" json:"csr_der,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MintDataDockSvidRequest) Reset() {
+	*x = MintDataDockSvidRequest{}
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[2]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MintDataDockSvidRequest) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MintDataDockSvidRequest) ProtoMessage() {}
+
+func (x *MintDataDockSvidRequest) ProtoReflect() protoreflect.Message {
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[2]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MintDataDockSvidRequest.ProtoReflect.Descriptor instead.
+func (*MintDataDockSvidRequest) Descriptor() ([]byte, []int) {
+	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{2}
+}
+
+func (x *MintDataDockSvidRequest) GetCsrDer() []byte {
+	if x != nil {
+		return x.CsrDer
+	}
+	return nil
+}
+
 type PodCredentialGeneration struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	CertDer       [][]byte               `protobuf:"bytes,1,rep,name=cert_der,json=certDer,proto3" json:"cert_der,omitempty"`                     // DER, leaf first
@@ -256,7 +303,7 @@ type PodCredentialGeneration struct {
 
 func (x *PodCredentialGeneration) Reset() {
 	*x = PodCredentialGeneration{}
-	mi := &file_idyl_minting_v2_minting_proto_msgTypes[2]
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[3]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -268,7 +315,7 @@ func (x *PodCredentialGeneration) String() string {
 func (*PodCredentialGeneration) ProtoMessage() {}
 
 func (x *PodCredentialGeneration) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_minting_v2_minting_proto_msgTypes[2]
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[3]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -281,7 +328,7 @@ func (x *PodCredentialGeneration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use PodCredentialGeneration.ProtoReflect.Descriptor instead.
 func (*PodCredentialGeneration) Descriptor() ([]byte, []int) {
-	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{2}
+	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{3}
 }
 
 func (x *PodCredentialGeneration) GetCertDer() [][]byte {
@@ -328,7 +375,7 @@ type SessionCredentialGeneration struct {
 
 func (x *SessionCredentialGeneration) Reset() {
 	*x = SessionCredentialGeneration{}
-	mi := &file_idyl_minting_v2_minting_proto_msgTypes[3]
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[4]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -340,7 +387,7 @@ func (x *SessionCredentialGeneration) String() string {
 func (*SessionCredentialGeneration) ProtoMessage() {}
 
 func (x *SessionCredentialGeneration) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_minting_v2_minting_proto_msgTypes[3]
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[4]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -353,7 +400,7 @@ func (x *SessionCredentialGeneration) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use SessionCredentialGeneration.ProtoReflect.Descriptor instead.
 func (*SessionCredentialGeneration) Descriptor() ([]byte, []int) {
-	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{3}
+	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{4}
 }
 
 func (x *SessionCredentialGeneration) GetCertDer() [][]byte {
@@ -379,6 +426,93 @@ func (x *SessionCredentialGeneration) GetTrustSnapshot() *trustv1.TrustSnapshot 
 
 // Refusal is a mint the issuer declined. code is a short machine-readable
 // reason made of lowercase letters and hyphens.
+// DataDockCredentialGeneration is a data dock's credential and the data
+// plane it docks to: the edge's address, the exact SPIFFE ID the edge must
+// present, and the CA certificates that identity verifies against.
+type DataDockCredentialGeneration struct {
+	state         protoimpl.MessageState `protogen:"open.v1"`
+	CertDer       [][]byte               `protobuf:"bytes,1,rep,name=cert_der,json=certDer,proto3" json:"cert_der,omitempty"`                     // DER, leaf first
+	LeaseEnvelope []byte                 `protobuf:"bytes,2,opt,name=lease_envelope,json=leaseEnvelope,proto3" json:"lease_envelope,omitempty"`   // exact canonical ZoneAdmissionLease bytes
+	RenewAtUnixS  uint64                 `protobuf:"varint,3,opt,name=renew_at_unix_s,json=renewAtUnixS,proto3" json:"renew_at_unix_s,omitempty"` // issuer-selected, inside the signed interval
+	EdgeEndpoint  string                 `protobuf:"bytes,4,opt,name=edge_endpoint,json=edgeEndpoint,proto3" json:"edge_endpoint,omitempty"`      // host:port
+	EdgePrincipal string                 `protobuf:"bytes,5,opt,name=edge_principal,json=edgePrincipal,proto3" json:"edge_principal,omitempty"`
+	EdgeRootsDer  [][]byte               `protobuf:"bytes,6,rep,name=edge_roots_der,json=edgeRootsDer,proto3" json:"edge_roots_der,omitempty"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *DataDockCredentialGeneration) Reset() {
+	*x = DataDockCredentialGeneration{}
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[5]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *DataDockCredentialGeneration) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*DataDockCredentialGeneration) ProtoMessage() {}
+
+func (x *DataDockCredentialGeneration) ProtoReflect() protoreflect.Message {
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[5]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use DataDockCredentialGeneration.ProtoReflect.Descriptor instead.
+func (*DataDockCredentialGeneration) Descriptor() ([]byte, []int) {
+	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{5}
+}
+
+func (x *DataDockCredentialGeneration) GetCertDer() [][]byte {
+	if x != nil {
+		return x.CertDer
+	}
+	return nil
+}
+
+func (x *DataDockCredentialGeneration) GetLeaseEnvelope() []byte {
+	if x != nil {
+		return x.LeaseEnvelope
+	}
+	return nil
+}
+
+func (x *DataDockCredentialGeneration) GetRenewAtUnixS() uint64 {
+	if x != nil {
+		return x.RenewAtUnixS
+	}
+	return 0
+}
+
+func (x *DataDockCredentialGeneration) GetEdgeEndpoint() string {
+	if x != nil {
+		return x.EdgeEndpoint
+	}
+	return ""
+}
+
+func (x *DataDockCredentialGeneration) GetEdgePrincipal() string {
+	if x != nil {
+		return x.EdgePrincipal
+	}
+	return ""
+}
+
+func (x *DataDockCredentialGeneration) GetEdgeRootsDer() [][]byte {
+	if x != nil {
+		return x.EdgeRootsDer
+	}
+	return nil
+}
+
 type Refusal struct {
 	state         protoimpl.MessageState `protogen:"open.v1"`
 	Code          string                 `protobuf:"bytes,1,opt,name=code,proto3" json:"code,omitempty"`
@@ -388,7 +522,7 @@ type Refusal struct {
 
 func (x *Refusal) Reset() {
 	*x = Refusal{}
-	mi := &file_idyl_minting_v2_minting_proto_msgTypes[4]
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[6]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -400,7 +534,7 @@ func (x *Refusal) String() string {
 func (*Refusal) ProtoMessage() {}
 
 func (x *Refusal) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_minting_v2_minting_proto_msgTypes[4]
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[6]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -413,7 +547,7 @@ func (x *Refusal) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use Refusal.ProtoReflect.Descriptor instead.
 func (*Refusal) Descriptor() ([]byte, []int) {
-	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{4}
+	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{6}
 }
 
 func (x *Refusal) GetCode() string {
@@ -437,7 +571,7 @@ type MintPodSvidReply struct {
 
 func (x *MintPodSvidReply) Reset() {
 	*x = MintPodSvidReply{}
-	mi := &file_idyl_minting_v2_minting_proto_msgTypes[5]
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[7]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -449,7 +583,7 @@ func (x *MintPodSvidReply) String() string {
 func (*MintPodSvidReply) ProtoMessage() {}
 
 func (x *MintPodSvidReply) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_minting_v2_minting_proto_msgTypes[5]
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[7]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -462,7 +596,7 @@ func (x *MintPodSvidReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MintPodSvidReply.ProtoReflect.Descriptor instead.
 func (*MintPodSvidReply) Descriptor() ([]byte, []int) {
-	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{5}
+	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{7}
 }
 
 func (x *MintPodSvidReply) GetVerdict() isMintPodSvidReply_Verdict {
@@ -521,7 +655,7 @@ type MintSessionSvidReply struct {
 
 func (x *MintSessionSvidReply) Reset() {
 	*x = MintSessionSvidReply{}
-	mi := &file_idyl_minting_v2_minting_proto_msgTypes[6]
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[8]
 	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 	ms.StoreMessageInfo(mi)
 }
@@ -533,7 +667,7 @@ func (x *MintSessionSvidReply) String() string {
 func (*MintSessionSvidReply) ProtoMessage() {}
 
 func (x *MintSessionSvidReply) ProtoReflect() protoreflect.Message {
-	mi := &file_idyl_minting_v2_minting_proto_msgTypes[6]
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[8]
 	if x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -546,7 +680,7 @@ func (x *MintSessionSvidReply) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use MintSessionSvidReply.ProtoReflect.Descriptor instead.
 func (*MintSessionSvidReply) Descriptor() ([]byte, []int) {
-	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{6}
+	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{8}
 }
 
 func (x *MintSessionSvidReply) GetVerdict() isMintSessionSvidReply_Verdict {
@@ -590,6 +724,90 @@ func (*MintSessionSvidReply_Generation) isMintSessionSvidReply_Verdict() {}
 
 func (*MintSessionSvidReply_Refusal) isMintSessionSvidReply_Verdict() {}
 
+// MintDataDockSvidReply carries exactly one verdict for a
+// MintDataDockSvidRequest.
+type MintDataDockSvidReply struct {
+	state protoimpl.MessageState `protogen:"open.v1"`
+	// Types that are valid to be assigned to Verdict:
+	//
+	//	*MintDataDockSvidReply_Generation
+	//	*MintDataDockSvidReply_Refusal
+	Verdict       isMintDataDockSvidReply_Verdict `protobuf_oneof:"verdict"`
+	unknownFields protoimpl.UnknownFields
+	sizeCache     protoimpl.SizeCache
+}
+
+func (x *MintDataDockSvidReply) Reset() {
+	*x = MintDataDockSvidReply{}
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[9]
+	ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+	ms.StoreMessageInfo(mi)
+}
+
+func (x *MintDataDockSvidReply) String() string {
+	return protoimpl.X.MessageStringOf(x)
+}
+
+func (*MintDataDockSvidReply) ProtoMessage() {}
+
+func (x *MintDataDockSvidReply) ProtoReflect() protoreflect.Message {
+	mi := &file_idyl_minting_v2_minting_proto_msgTypes[9]
+	if x != nil {
+		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
+		if ms.LoadMessageInfo() == nil {
+			ms.StoreMessageInfo(mi)
+		}
+		return ms
+	}
+	return mi.MessageOf(x)
+}
+
+// Deprecated: Use MintDataDockSvidReply.ProtoReflect.Descriptor instead.
+func (*MintDataDockSvidReply) Descriptor() ([]byte, []int) {
+	return file_idyl_minting_v2_minting_proto_rawDescGZIP(), []int{9}
+}
+
+func (x *MintDataDockSvidReply) GetVerdict() isMintDataDockSvidReply_Verdict {
+	if x != nil {
+		return x.Verdict
+	}
+	return nil
+}
+
+func (x *MintDataDockSvidReply) GetGeneration() *DataDockCredentialGeneration {
+	if x != nil {
+		if x, ok := x.Verdict.(*MintDataDockSvidReply_Generation); ok {
+			return x.Generation
+		}
+	}
+	return nil
+}
+
+func (x *MintDataDockSvidReply) GetRefusal() *Refusal {
+	if x != nil {
+		if x, ok := x.Verdict.(*MintDataDockSvidReply_Refusal); ok {
+			return x.Refusal
+		}
+	}
+	return nil
+}
+
+type isMintDataDockSvidReply_Verdict interface {
+	isMintDataDockSvidReply_Verdict()
+}
+
+type MintDataDockSvidReply_Generation struct {
+	Generation *DataDockCredentialGeneration `protobuf:"bytes,1,opt,name=generation,proto3,oneof"`
+}
+
+type MintDataDockSvidReply_Refusal struct {
+	Refusal *Refusal `protobuf:"bytes,2,opt,name=refusal,proto3,oneof"`
+}
+
+func (*MintDataDockSvidReply_Generation) isMintDataDockSvidReply_Verdict() {}
+
+func (*MintDataDockSvidReply_Refusal) isMintDataDockSvidReply_Verdict() {}
+
 var File_idyl_minting_v2_minting_proto protoreflect.FileDescriptor
 
 const file_idyl_minting_v2_minting_proto_rawDesc = "" +
@@ -612,7 +830,9 @@ const file_idyl_minting_v2_minting_proto_rawDesc = "" +
 	"\x11expires_at_unix_s\x18\b \x01(\x04R\x0eexpiresAtUnixS\x12+\n" +
 	"\x11micropod_sequence\x18\t \x01(\x04R\x10micropodSequence\x123\n" +
 	"\x15credential_generation\x18\n" +
-	" \x01(\x04R\x14credentialGeneration\"\xc7\x01\n" +
+	" \x01(\x04R\x14credentialGeneration\"2\n" +
+	"\x17MintDataDockSvidRequest\x12\x17\n" +
+	"\acsr_der\x18\x01 \x01(\fR\x06csrDer\"\xc7\x01\n" +
 	"\x17PodCredentialGeneration\x12\x19\n" +
 	"\bcert_der\x18\x01 \x03(\fR\acertDer\x12%\n" +
 	"\x0elease_envelope\x18\x02 \x01(\fR\rleaseEnvelope\x12%\n" +
@@ -621,7 +841,14 @@ const file_idyl_minting_v2_minting_proto_rawDesc = "" +
 	"\x1bSessionCredentialGeneration\x12\x19\n" +
 	"\bcert_der\x18\x01 \x03(\fR\acertDer\x12%\n" +
 	"\x0elease_envelope\x18\x02 \x01(\fR\rleaseEnvelope\x12C\n" +
-	"\x0etrust_snapshot\x18\x03 \x01(\v2\x1c.idyl.trust.v1.TrustSnapshotR\rtrustSnapshot\"\x1d\n" +
+	"\x0etrust_snapshot\x18\x03 \x01(\v2\x1c.idyl.trust.v1.TrustSnapshotR\rtrustSnapshot\"\xf9\x01\n" +
+	"\x1cDataDockCredentialGeneration\x12\x19\n" +
+	"\bcert_der\x18\x01 \x03(\fR\acertDer\x12%\n" +
+	"\x0elease_envelope\x18\x02 \x01(\fR\rleaseEnvelope\x12%\n" +
+	"\x0frenew_at_unix_s\x18\x03 \x01(\x04R\frenewAtUnixS\x12#\n" +
+	"\redge_endpoint\x18\x04 \x01(\tR\fedgeEndpoint\x12%\n" +
+	"\x0eedge_principal\x18\x05 \x01(\tR\redgePrincipal\x12$\n" +
+	"\x0eedge_roots_der\x18\x06 \x03(\fR\fedgeRootsDer\"\x1d\n" +
 	"\aRefusal\x12\x12\n" +
 	"\x04code\x18\x01 \x01(\tR\x04code\"\x9f\x01\n" +
 	"\x10MintPodSvidReply\x12J\n" +
@@ -633,6 +860,12 @@ const file_idyl_minting_v2_minting_proto_rawDesc = "" +
 	"\x14MintSessionSvidReply\x12N\n" +
 	"\n" +
 	"generation\x18\x01 \x01(\v2,.idyl.minting.v2.SessionCredentialGenerationH\x00R\n" +
+	"generation\x124\n" +
+	"\arefusal\x18\x02 \x01(\v2\x18.idyl.minting.v2.RefusalH\x00R\arefusalB\t\n" +
+	"\averdict\"\xa9\x01\n" +
+	"\x15MintDataDockSvidReply\x12O\n" +
+	"\n" +
+	"generation\x18\x01 \x01(\v2-.idyl.minting.v2.DataDockCredentialGenerationH\x00R\n" +
 	"generation\x124\n" +
 	"\arefusal\x18\x02 \x01(\v2\x18.idyl.minting.v2.RefusalH\x00R\arefusalB\t\n" +
 	"\averdictB3Z1github.com/idyl-labs/hyperplane-go/wire/mintingv2b\x06proto3"
@@ -649,33 +882,38 @@ func file_idyl_minting_v2_minting_proto_rawDescGZIP() []byte {
 	return file_idyl_minting_v2_minting_proto_rawDescData
 }
 
-var file_idyl_minting_v2_minting_proto_msgTypes = make([]protoimpl.MessageInfo, 7)
+var file_idyl_minting_v2_minting_proto_msgTypes = make([]protoimpl.MessageInfo, 10)
 var file_idyl_minting_v2_minting_proto_goTypes = []any{
-	(*MintPodSvidRequest)(nil),          // 0: idyl.minting.v2.MintPodSvidRequest
-	(*MintSessionSvidRequest)(nil),      // 1: idyl.minting.v2.MintSessionSvidRequest
-	(*PodCredentialGeneration)(nil),     // 2: idyl.minting.v2.PodCredentialGeneration
-	(*SessionCredentialGeneration)(nil), // 3: idyl.minting.v2.SessionCredentialGeneration
-	(*Refusal)(nil),                     // 4: idyl.minting.v2.Refusal
-	(*MintPodSvidReply)(nil),            // 5: idyl.minting.v2.MintPodSvidReply
-	(*MintSessionSvidReply)(nil),        // 6: idyl.minting.v2.MintSessionSvidReply
-	(commonv2.SessionKind)(0),           // 7: idyl.membership.v2.SessionKind
-	(commonv2.SessionLeg)(0),            // 8: idyl.membership.v2.SessionLeg
-	(*trustv1.TrustSnapshot)(nil),       // 9: idyl.trust.v1.TrustSnapshot
+	(*MintPodSvidRequest)(nil),           // 0: idyl.minting.v2.MintPodSvidRequest
+	(*MintSessionSvidRequest)(nil),       // 1: idyl.minting.v2.MintSessionSvidRequest
+	(*MintDataDockSvidRequest)(nil),      // 2: idyl.minting.v2.MintDataDockSvidRequest
+	(*PodCredentialGeneration)(nil),      // 3: idyl.minting.v2.PodCredentialGeneration
+	(*SessionCredentialGeneration)(nil),  // 4: idyl.minting.v2.SessionCredentialGeneration
+	(*DataDockCredentialGeneration)(nil), // 5: idyl.minting.v2.DataDockCredentialGeneration
+	(*Refusal)(nil),                      // 6: idyl.minting.v2.Refusal
+	(*MintPodSvidReply)(nil),             // 7: idyl.minting.v2.MintPodSvidReply
+	(*MintSessionSvidReply)(nil),         // 8: idyl.minting.v2.MintSessionSvidReply
+	(*MintDataDockSvidReply)(nil),        // 9: idyl.minting.v2.MintDataDockSvidReply
+	(commonv2.SessionKind)(0),            // 10: idyl.membership.v2.SessionKind
+	(commonv2.SessionLeg)(0),             // 11: idyl.membership.v2.SessionLeg
+	(*trustv1.TrustSnapshot)(nil),        // 12: idyl.trust.v1.TrustSnapshot
 }
 var file_idyl_minting_v2_minting_proto_depIdxs = []int32{
-	7, // 0: idyl.minting.v2.MintSessionSvidRequest.session_kind:type_name -> idyl.membership.v2.SessionKind
-	8, // 1: idyl.minting.v2.MintSessionSvidRequest.session_leg:type_name -> idyl.membership.v2.SessionLeg
-	9, // 2: idyl.minting.v2.PodCredentialGeneration.trust_snapshot:type_name -> idyl.trust.v1.TrustSnapshot
-	9, // 3: idyl.minting.v2.SessionCredentialGeneration.trust_snapshot:type_name -> idyl.trust.v1.TrustSnapshot
-	2, // 4: idyl.minting.v2.MintPodSvidReply.generation:type_name -> idyl.minting.v2.PodCredentialGeneration
-	4, // 5: idyl.minting.v2.MintPodSvidReply.refusal:type_name -> idyl.minting.v2.Refusal
-	3, // 6: idyl.minting.v2.MintSessionSvidReply.generation:type_name -> idyl.minting.v2.SessionCredentialGeneration
-	4, // 7: idyl.minting.v2.MintSessionSvidReply.refusal:type_name -> idyl.minting.v2.Refusal
-	8, // [8:8] is the sub-list for method output_type
-	8, // [8:8] is the sub-list for method input_type
-	8, // [8:8] is the sub-list for extension type_name
-	8, // [8:8] is the sub-list for extension extendee
-	0, // [0:8] is the sub-list for field type_name
+	10, // 0: idyl.minting.v2.MintSessionSvidRequest.session_kind:type_name -> idyl.membership.v2.SessionKind
+	11, // 1: idyl.minting.v2.MintSessionSvidRequest.session_leg:type_name -> idyl.membership.v2.SessionLeg
+	12, // 2: idyl.minting.v2.PodCredentialGeneration.trust_snapshot:type_name -> idyl.trust.v1.TrustSnapshot
+	12, // 3: idyl.minting.v2.SessionCredentialGeneration.trust_snapshot:type_name -> idyl.trust.v1.TrustSnapshot
+	3,  // 4: idyl.minting.v2.MintPodSvidReply.generation:type_name -> idyl.minting.v2.PodCredentialGeneration
+	6,  // 5: idyl.minting.v2.MintPodSvidReply.refusal:type_name -> idyl.minting.v2.Refusal
+	4,  // 6: idyl.minting.v2.MintSessionSvidReply.generation:type_name -> idyl.minting.v2.SessionCredentialGeneration
+	6,  // 7: idyl.minting.v2.MintSessionSvidReply.refusal:type_name -> idyl.minting.v2.Refusal
+	5,  // 8: idyl.minting.v2.MintDataDockSvidReply.generation:type_name -> idyl.minting.v2.DataDockCredentialGeneration
+	6,  // 9: idyl.minting.v2.MintDataDockSvidReply.refusal:type_name -> idyl.minting.v2.Refusal
+	10, // [10:10] is the sub-list for method output_type
+	10, // [10:10] is the sub-list for method input_type
+	10, // [10:10] is the sub-list for extension type_name
+	10, // [10:10] is the sub-list for extension extendee
+	0,  // [0:10] is the sub-list for field type_name
 }
 
 func init() { file_idyl_minting_v2_minting_proto_init() }
@@ -683,13 +921,17 @@ func file_idyl_minting_v2_minting_proto_init() {
 	if File_idyl_minting_v2_minting_proto != nil {
 		return
 	}
-	file_idyl_minting_v2_minting_proto_msgTypes[5].OneofWrappers = []any{
+	file_idyl_minting_v2_minting_proto_msgTypes[7].OneofWrappers = []any{
 		(*MintPodSvidReply_Generation)(nil),
 		(*MintPodSvidReply_Refusal)(nil),
 	}
-	file_idyl_minting_v2_minting_proto_msgTypes[6].OneofWrappers = []any{
+	file_idyl_minting_v2_minting_proto_msgTypes[8].OneofWrappers = []any{
 		(*MintSessionSvidReply_Generation)(nil),
 		(*MintSessionSvidReply_Refusal)(nil),
+	}
+	file_idyl_minting_v2_minting_proto_msgTypes[9].OneofWrappers = []any{
+		(*MintDataDockSvidReply_Generation)(nil),
+		(*MintDataDockSvidReply_Refusal)(nil),
 	}
 	type x struct{}
 	out := protoimpl.TypeBuilder{
@@ -697,7 +939,7 @@ func file_idyl_minting_v2_minting_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: unsafe.Slice(unsafe.StringData(file_idyl_minting_v2_minting_proto_rawDesc), len(file_idyl_minting_v2_minting_proto_rawDesc)),
 			NumEnums:      0,
-			NumMessages:   7,
+			NumMessages:   10,
 			NumExtensions: 0,
 			NumServices:   0,
 		},

@@ -177,6 +177,29 @@ message Nak {
   NakCode code = 1;
 }
 
+// OpenDataDockLane asks the edge for one STREAM lane from this client to the
+// data dock named by target_principal, the exact SPIFFE ID
+// /node/{nodeID}/data-dock in the client's Zone. Only an admitted client
+// sends it. It carries no locator: the edge selects the newest live
+// connection of that data dock, and the lane stays on that connection for
+// its whole life. A signed lane policy must permit client lanes to data
+// docks; the edge judges it before it looks for the data dock, so a client
+// it does not permit learns nothing of whether the data dock is connected.
+// The edge answers LaneOpened, whose one target confirmation names the
+// principal and no generation, or Nak. Either end may open streams on the
+// lane. metadata is opaque to the fabric.
+message OpenDataDockLane {
+  string target_principal = 1;
+  bytes metadata = 2;
+}
+
+// WithdrawDataDockTarget, sent by a data dock on its own connection, stops
+// the edge from choosing that connection for new lanes. The edge removes it
+// before it answers Ack. Lanes already open stay on it and drain. A data
+// dock withdraws a connection once its successor, docked with a new
+// credential, is welcomed.
+message WithdrawDataDockTarget {}
+
 // RequesterToEdge is the requester's one verb on a delivery stream.
 message RequesterToEdge {
   oneof msg {
@@ -185,6 +208,8 @@ message RequesterToEdge {
     OpenLane open_lane = 4;
     OpenServiceLane open_service_lane = 5;
     WithdrawServiceTarget withdraw_service_target = 6;
+    OpenDataDockLane open_data_dock_lane = 7;
+    WithdrawDataDockTarget withdraw_data_dock_target = 8;
   }
   reserved 3;
   reserved "open_splice";
