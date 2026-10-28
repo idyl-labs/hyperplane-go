@@ -43,6 +43,22 @@
 // sender blocks at zero credit. A peer that sends past its credit is a
 // protocol violation, and the connection is closed rather than buffering
 // without bound.
+//
+// # Inside a WebSocket
+//
+// A client that can open neither a TCP connection nor QUIC, such as a web
+// page, may carry a fallback/1 connection inside a WebSocket (RFC 6455)
+// to an edge's browser listener: GET /hyperplane/fallback/1 over TLS,
+// with the subprotocol idyl-fallback.1, from an Origin the listener
+// admits. After the upgrade, the payload bytes of the client's binary
+// messages, in order, are exactly the bytes a TCP connection to the
+// fallback door carries, starting with the TLS ClientHello for ALPN
+// idyl-fallback/1, and the edge's binary messages carry its bytes the
+// same way. Message boundaries carry no meaning, a text message ends the
+// connection, and closing the WebSocket ends the byte stream as a TCP
+// close does. Nothing else about fallback/1 changes: the same TLS 1.3
+// handshake with the client certificate, the same dock admission bound
+// to that TLS session, and the same frames.
 package fallback
 
 import (
