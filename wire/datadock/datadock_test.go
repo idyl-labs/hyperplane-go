@@ -29,7 +29,7 @@ var testHost = [16]byte{0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x41, 0x11, 0x81, 0x
 
 // goldens reads testdata/golden.txt: name, a tab, then lowercase hex. The
 // same file pins every other implementation of this contract.
-func goldens(t *testing.T) map[string][]byte {
+func goldens(t testing.TB) map[string][]byte {
 	t.Helper()
 	file, err := os.Open(filepath.Join("testdata", "golden.txt"))
 	if err != nil {

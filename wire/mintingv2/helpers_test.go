@@ -149,5 +149,16 @@ func (m mintFixture) sessionGeneration() *mintingv2.SessionCredentialGeneration 
 	}
 }
 
+func (m mintFixture) dataDockGeneration() *mintingv2.DataDockCredentialGeneration {
+	return &mintingv2.DataDockCredentialGeneration{
+		CertDer:       [][]byte{m.leaf.der},
+		LeaseEnvelope: m.lease,
+		RenewAtUnixS:  uint64(fixtureNow.Add(6 * time.Hour).Unix()),
+		EdgeEndpoint:  "edge.zone-a.example:443",
+		EdgePrincipal: "spiffe://zone-a.zone.example/edge",
+		EdgeRootsDer:  [][]byte{m.root.der},
+	}
+}
+
 // maxLease is a lease envelope of exactly the largest permitted size.
 var maxLease = bytes.Repeat([]byte{0x5a}, admissionv3.MaxLeaseEnvelopeBytes)
