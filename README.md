@@ -8,11 +8,12 @@
 The Go client for Hyperplane, the authenticated connection fabric of
 [IDYL](https://idyl.network).
 
-An endpoint (a node, a pod, one leg of a session, a share) connects to a
-Hyperplane edge with a *dock*: one mutually authenticated connection over
-QUIC, or over TCP and TLS where UDP is blocked. Through its dock, the
-endpoint receives lanes to other endpoints, events and RPCs, without opening
-a listening port of its own, and reaches other endpoints the same way.
+An endpoint (a node, a pod, one leg of a session, a share, a node's data
+dock) connects to a Hyperplane edge with a *dock*: one mutually
+authenticated connection over QUIC, or over TCP and TLS where UDP is
+blocked. Through its dock, the endpoint receives lanes to other endpoints,
+events and RPCs, without opening a listening port of its own, and reaches
+other endpoints the same way.
 
 ```go
 d, err := dock.Open(ctx, dock.Config{
@@ -75,7 +76,7 @@ verification must reproduce verdict for verdict.
 
 | Term | Meaning |
 | --- | --- |
-| Endpoint | Anything that docks: a node, a pod, one leg of a session, a share. |
+| Endpoint | Anything that docks: a node, a pod, one leg of a session, a share, a node's data dock. |
 | Edge | The fabric server an endpoint docks with. |
 | Dock | One admitted connection of an endpoint to an edge. |
 | Generation | The identity of one dock. Naming it on the next dock makes that dock a succession. |

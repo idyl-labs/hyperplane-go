@@ -157,6 +157,17 @@
 // negotiate the profile, or that has the wrong role. Ordinary docking and
 // locator-based verbs are unchanged.
 //
+// # Data dock lanes
+//
+// A client docked with dock/3 calls OpenDataDockLane to reach a Node's data
+// dock, named by its exact SPIFFE ID (wire/datadock.Principal). The edge
+// opens the lane only under a lane policy that admits clients to data
+// docks, and binds it to the data dock's newest connection for its whole
+// life. The lane carries streams only. Each stream is one connection to a
+// Computer on that Node: its attribution header is a wire/datadock.Header,
+// the data dock answers with a wire/datadock.Reply, and the client's TLS
+// to the Computer's endpoint runs inside it, end to end.
+//
 // # Transports
 //
 // QUIC is the primary transport. Some networks block UDP, and blocked UDP

@@ -67,6 +67,13 @@ message MintSessionSvidRequest {
 }
 
 // PodCredentialGeneration is a successful Pod mint.
+// MintDataDockSvidRequest asks for a credential generation for a Node's data
+// dock. It carries only the CSR: the issuer derives the data dock's identity
+// from the Node the request arrives from, never from the request.
+message MintDataDockSvidRequest {
+  bytes csr_der = 1;
+}
+
 message PodCredentialGeneration {
   repeated bytes cert_der = 1; // DER, leaf first
   bytes lease_envelope = 2; // exact canonical ZoneAdmissionLease bytes
@@ -90,6 +97,18 @@ message SessionCredentialGeneration {
 
 // Refusal is a mint the issuer declined. code is a short machine-readable
 // reason made of lowercase letters and hyphens.
+// DataDockCredentialGeneration is a data dock's credential and the data
+// plane it docks to: the edge's address, the exact SPIFFE ID the edge must
+// present, and the CA certificates that identity verifies against.
+message DataDockCredentialGeneration {
+  repeated bytes cert_der = 1; // DER, leaf first
+  bytes lease_envelope = 2; // exact canonical ZoneAdmissionLease bytes
+  uint64 renew_at_unix_s = 3; // issuer-selected, inside the signed interval
+  string edge_endpoint = 4; // host:port
+  string edge_principal = 5;
+  repeated bytes edge_roots_der = 6;
+}
+
 message Refusal {
   string code = 1;
 }
@@ -107,6 +126,15 @@ message MintPodSvidReply {
 message MintSessionSvidReply {
   oneof verdict {
     SessionCredentialGeneration generation = 1;
+    Refusal refusal = 2;
+  }
+}
+
+// MintDataDockSvidReply carries exactly one verdict for a
+// MintDataDockSvidRequest.
+message MintDataDockSvidReply {
+  oneof verdict {
+    DataDockCredentialGeneration generation = 1;
     Refusal refusal = 2;
   }
 }

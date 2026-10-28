@@ -48,6 +48,8 @@ const (
 	// micropod keyword and sequence inserted after the pod incarnation.
 	micropodSessionPrincipalSegments = 19
 	sharePrincipalSegments           = 2
+	// dataDockPrincipalSegments is node, the Node ID, and data-dock.
+	dataDockPrincipalSegments = 3
 )
 
 // Admission refusal classes. The lease, payload, binding and dock proof
@@ -234,7 +236,8 @@ func ValidateZoneAdmissionLeasePayload(payload *apb.ZoneAdmissionLeasePayload, n
 	if payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_NODE &&
 		payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_POD &&
 		payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_SESSION &&
-		payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_SHARE {
+		payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_SHARE &&
+		payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_DATA_DOCK {
 		return fmt.Errorf("%w: unknown dynamic endpoint kind %d", ErrAdmissionMalformed, payload.GetEndpointKind())
 	}
 	for name, value := range map[string]string{
@@ -313,6 +316,13 @@ func ValidateZoneAdmissionLeasePayload(payload *apb.ZoneAdmissionLeasePayload, n
 		if payload.GetNotAfterUnixS()-payload.GetIssuedAtUnixS() > uint64(apb.MaxShareLeaseLifetime.Seconds()) {
 			return fmt.Errorf("%w: share interval exceeds %s", ErrAdmissionMalformed, apb.MaxShareLeaseLifetime)
 		}
+	case mpb.EndpointKind_ENDPOINT_KIND_DATA_DOCK:
+		if err := validateDataDockLeaseProfile(payload, principal); err != nil {
+			return err
+		}
+		if payload.GetNotAfterUnixS()-payload.GetIssuedAtUnixS() > uint64(apb.MaxDataDockLeaseLifetime.Seconds()) {
+			return fmt.Errorf("%w: data dock interval exceeds %s", ErrAdmissionMalformed, apb.MaxDataDockLeaseLifetime)
+		}
 	}
 	return nil
 }
@@ -336,9 +346,9 @@ func ValidateZoneAdmissionLeaseBinding(payload *apb.ZoneAdmissionLeasePayload, p
 		return fmt.Errorf("%w: lease outlives signer", ErrAdmissionBinding)
 	}
 	if payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_POD || payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_SESSION ||
-		payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_SHARE {
+		payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_SHARE || payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_DATA_DOCK {
 		if payload.GetNotAfterUnixS() != peer.SVIDNotAfterUnixS {
-			return fmt.Errorf("%w: pod/session/share lease deadline differs from SVID", ErrAdmissionBinding)
+			return fmt.Errorf("%w: pod/session/share/data dock lease deadline differs from SVID", ErrAdmissionBinding)
 		}
 	}
 	if payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_SESSION {
@@ -547,6 +557,38 @@ func validateShareLeaseProfile(p *apb.ZoneAdmissionLeasePayload, principal admis
 	s := principal.segments
 	if len(s) != sharePrincipalSegments || s[0] != "share" || s[1] != p.GetShareId() {
 		return fmt.Errorf("%w: share principal does not match lease", ErrAdmissionMalformed)
+	}
+	return nil
+}
+
+// validateDataDockLeaseProfile enforces the data dock leg: the data plane,
+// an owner scope, a Node ID that byte-matches the principal's three-segment
+// path, a lane ceiling of exactly STREAM, and no field belonging to another
+// endpoint kind. A data dock names no Subnet: the Node ID alone identifies
+// it in its Zone.
+func validateDataDockLeaseProfile(p *apb.ZoneAdmissionLeasePayload, principal admissionPrincipal) error {
+	if p.GetFabricPlane() != mpb.Plane_PLANE_DATA {
+		return fmt.Errorf("%w: data dock lease names the control plane", ErrAdmissionMalformed)
+	}
+	if err := requireText(p.GetOwnerScope(), "owner_scope"); err != nil {
+		return err
+	}
+	if err := requireText(p.GetNodeId(), "node_id"); err != nil {
+		return err
+	}
+	if p.GetLaneClassCeiling() != LaneClassStream {
+		return fmt.Errorf("%w: data dock lane ceiling must be STREAM alone", ErrAdmissionMalformed)
+	}
+	if p.GetSubnetId() != "" || p.GetAccountId() != "" || p.GetNamespaceId() != "" || p.GetWorkloadId() != "" ||
+		p.GetPodId() != "" || p.GetPodInstanceId() != "" || p.GetAssignmentGeneration() != 0 ||
+		p.GetSessionId() != "" || p.GetSessionKind() != mpb.SessionKind_SESSION_KIND_UNSPECIFIED ||
+		p.GetSessionLeg() != mpb.SessionLeg_SESSION_LEG_UNSPECIFIED || p.GetGrantId() != "" ||
+		p.GetMicropodSequence() != 0 || p.GetShareId() != "" || p.GetNodeAdmission() != apb.NodeAdmission_NODE_ADMISSION_UNSPECIFIED {
+		return fmt.Errorf("%w: data dock lease carries fields from another kind", ErrAdmissionMalformed)
+	}
+	s := principal.segments
+	if len(s) != dataDockPrincipalSegments || s[0] != "node" || s[1] != p.GetNodeId() || s[2] != "data-dock" {
+		return fmt.Errorf("%w: data dock principal does not match lease", ErrAdmissionMalformed)
 	}
 	return nil
 }
