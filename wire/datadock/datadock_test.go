@@ -144,15 +144,15 @@ func TestReadReplyReadsOneReplyAndRefusesBadReasons(t *testing.T) {
 }
 
 func TestPrincipalIsTheExactDataDockShape(t *testing.T) {
-	got, err := Principal("zone-a.zone.test.idyl.network", "Q2xpZW50Tm9kZUlEMDE")
-	if err != nil || got != "spiffe://zone-a.zone.test.idyl.network/node/Q2xpZW50Tm9kZUlEMDE/data-dock" {
+	got, err := Principal("zone-a.zone.example", "Q2xpZW50Tm9kZUlEMDE")
+	if err != nil || got != "spiffe://zone-a.zone.example/node/Q2xpZW50Tm9kZUlEMDE/data-dock" {
 		t.Fatalf("Principal = %q, %v", got, err)
 	}
 	for _, tc := range []struct{ td, node string }{
-		{"test.idyl.network", "n1"},
-		{"zone-a.zone.test.idyl.network", ""},
-		{"zone-a.zone.test.idyl.network", "a/b"},
-		{"Zone-A.zone.test.idyl.network", "n1"},
+		{"network.example", "n1"},
+		{"zone-a.zone.example", ""},
+		{"zone-a.zone.example", "a/b"},
+		{"Zone-A.zone.example", "n1"},
 	} {
 		if _, err := Principal(tc.td, tc.node); !errors.Is(err, ErrMalformed) {
 			t.Fatalf("Principal(%q, %q) = %v, want ErrMalformed", tc.td, tc.node, err)
