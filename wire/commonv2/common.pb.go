@@ -65,6 +65,12 @@ const (
 	// A share: a tunnel dock that serves as a data-plane lane target, follows
 	// session rules, and is bound to no Node.
 	EndpointKind_ENDPOINT_KIND_SHARE EndpointKind = 5
+	// A client: one client process (a command-line agent or a browser page)
+	// acting for a principal of an Account, named by the thumbprint of the
+	// key its access tokens are bound to and an instance. It is admitted only
+	// by a signed lease on the data plane, as a consumer: it holds no
+	// addressable row and is never a lane target.
+	EndpointKind_ENDPOINT_KIND_CLIENT EndpointKind = 6
 	// A Node's data dock: the one connection, held for the Node's life on
 	// its Zone's data plane, through which clients' streams reach the
 	// Computers the Node runs. It holds its own credential, never the Node's,
@@ -83,6 +89,7 @@ var (
 		3: "ENDPOINT_KIND_SESSION",
 		4: "ENDPOINT_KIND_FABRIC",
 		5: "ENDPOINT_KIND_SHARE",
+		6: "ENDPOINT_KIND_CLIENT",
 		7: "ENDPOINT_KIND_DATA_DOCK",
 	}
 	EndpointKind_value = map[string]int32{
@@ -92,6 +99,7 @@ var (
 		"ENDPOINT_KIND_SESSION":     3,
 		"ENDPOINT_KIND_FABRIC":      4,
 		"ENDPOINT_KIND_SHARE":       5,
+		"ENDPOINT_KIND_CLIENT":      6,
 		"ENDPOINT_KIND_DATA_DOCK":   7,
 	}
 )
@@ -372,14 +380,15 @@ const file_idyl_membership_v2_common_proto_rawDesc = "" +
 	"\x04slot\x18\x02 \x01(\rR\x04slot\x12\x1d\n" +
 	"\n" +
 	"slot_epoch\x18\x03 \x01(\rR\tslotEpoch\x12\x14\n" +
-	"\x05nonce\x18\x04 \x01(\fR\x05nonce*\xc7\x01\n" +
+	"\x05nonce\x18\x04 \x01(\fR\x05nonce*\xe1\x01\n" +
 	"\fEndpointKind\x12\x1d\n" +
 	"\x19ENDPOINT_KIND_UNSPECIFIED\x10\x00\x12\x16\n" +
 	"\x12ENDPOINT_KIND_NODE\x10\x01\x12\x15\n" +
 	"\x11ENDPOINT_KIND_POD\x10\x02\x12\x19\n" +
 	"\x15ENDPOINT_KIND_SESSION\x10\x03\x12\x18\n" +
 	"\x14ENDPOINT_KIND_FABRIC\x10\x04\x12\x17\n" +
-	"\x13ENDPOINT_KIND_SHARE\x10\x05\x12\x1b\n" +
+	"\x13ENDPOINT_KIND_SHARE\x10\x05\x12\x18\n" +
+	"\x14ENDPOINT_KIND_CLIENT\x10\x06\x12\x1b\n" +
 	"\x17ENDPOINT_KIND_DATA_DOCK\x10\a*q\n" +
 	"\vSessionKind\x12\x1c\n" +
 	"\x18SESSION_KIND_UNSPECIFIED\x10\x00\x12\x15\n" +

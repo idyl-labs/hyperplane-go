@@ -75,6 +75,12 @@ enum EndpointKind {
   // A share: a tunnel dock that serves as a data-plane lane target, follows
   // session rules, and is bound to no Node.
   ENDPOINT_KIND_SHARE = 5;
+  // A client: one client process (a command-line agent or a browser page)
+  // acting for a principal of an Account, named by the thumbprint of the
+  // key its access tokens are bound to and an instance. It is admitted only
+  // by a signed lease on the data plane, as a consumer: it holds no
+  // addressable row and is never a lane target.
+  ENDPOINT_KIND_CLIENT = 6;
   // A Node's data dock: the one connection, held for the Node's life on
   // its Zone's data plane, through which clients' streams reach the
   // Computers the Node runs. It holds its own credential, never the Node's,

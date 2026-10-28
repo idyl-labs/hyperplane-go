@@ -131,6 +131,7 @@ func TestNumericBounds(t *testing.T) {
 		{"MaxNodeLeaseLifetime", admissionv3.MaxNodeLeaseLifetime, 24 * time.Hour},
 		{"MaxSessionLeaseLifetime", admissionv3.MaxSessionLeaseLifetime, time.Hour},
 		{"MaxShareLeaseLifetime", admissionv3.MaxShareLeaseLifetime, time.Hour},
+		{"MaxClientLeaseLifetime", admissionv3.MaxClientLeaseLifetime, time.Hour},
 	} {
 		if row.got != row.want {
 			t.Errorf("%s = %v, want %v", row.name, row.got, row.want)
@@ -163,7 +164,8 @@ func TestBoundsAreMutuallyConsistent(t *testing.T) {
 	}
 	if admissionv3.MaxNodeLeaseLifetime > admissionv3.MaxAdmissionSignerLifetime ||
 		admissionv3.MaxSessionLeaseLifetime > admissionv3.MaxAdmissionSignerLifetime ||
-		admissionv3.MaxShareLeaseLifetime > admissionv3.MaxAdmissionSignerLifetime {
+		admissionv3.MaxShareLeaseLifetime > admissionv3.MaxAdmissionSignerLifetime ||
+		admissionv3.MaxClientLeaseLifetime > admissionv3.MaxAdmissionSignerLifetime {
 		t.Error("a lease kind may outlive the longest admission signer")
 	}
 	if admissionv3.IssuerBackdate <= 0 || admissionv3.VerifierClockGrace != 0 {

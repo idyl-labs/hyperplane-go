@@ -33,6 +33,7 @@
 //	session: /subnet/{subnet}/account/{account}/namespace/{namespaceID}/workload/{workloadID}/pod/{podID}/pod-instance/{podID}.{generation}/micropod/{sequence}/session/{kind}/{sessionID}/leg/{leg}
 //	share:   /share/{shareID}
 //	data dock: /node/{nodeID}/data-dock
+//	client:  /account/{account}/client/{keyThumbprint}/instance/{instance}
 //
 // Every keyword segment is compared byte for byte at its own index, and
 // every value segment is compared to the lease field carrying the same
@@ -45,7 +46,11 @@
 // own. A share lease names the data plane and carries no subnet, account,
 // namespace, workload, node or pod fact. A data dock lease names the data
 // plane and its Node, a lane ceiling of STREAM alone, and no subnet,
-// account, namespace, workload, pod or session fact.
+// account, namespace, workload, pod or session fact. A client lease names
+// the data plane and its Account, which the principal's account segment
+// matches; {keyThumbprint} is 43 characters of unpadded base64url and
+// {instance} a canonical lowercase UUID, and it carries no subnet,
+// namespace, workload, node, pod, session or share fact.
 //
 // A session lease selects one of the two session paths by its
 // micropod_sequence. Zero selects the first, seventeen-segment path: the
@@ -132,12 +137,13 @@ const (
 	MaxAdmissionSignerLifetime = 24 * time.Hour
 
 	// Maximum signed lease intervals per endpoint kind. A node lease is
-	// bounded from not_before; session, share and data dock leases are
-	// bounded from issued_at.
+	// bounded from not_before; session, share, data dock and client leases
+	// are bounded from issued_at.
 	MaxNodeLeaseLifetime     = 24 * time.Hour
 	MaxSessionLeaseLifetime  = 60 * time.Minute
 	MaxShareLeaseLifetime    = 60 * time.Minute
 	MaxDataDockLeaseLifetime = 24 * time.Hour
+	MaxClientLeaseLifetime   = 60 * time.Minute
 )
 
 // Admission signer SPIFFE ID paths. An admission signer must present the

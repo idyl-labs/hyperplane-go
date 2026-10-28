@@ -153,6 +153,10 @@ func build() (*conformance.Corpus, error) {
 	if err != nil {
 		return nil, err
 	}
+	clientPayloadBytes, err := wire.MarshalZoneAdmissionLeasePayload(clientPayload())
+	if err != nil {
+		return nil, err
+	}
 	sessionPayloadBytes, err := wire.MarshalZoneAdmissionLeasePayload(sessionPayload())
 	if err != nil {
 		return nil, err
@@ -178,6 +182,10 @@ func build() (*conformance.Corpus, error) {
 		return nil, err
 	}
 	validDataDock, err := dataSigner.SignLeasePayloadBytes(dataDockPayloadBytes)
+	if err != nil {
+		return nil, err
+	}
+	validClient, err := dataSigner.SignLeasePayloadBytes(clientPayloadBytes)
 	if err != nil {
 		return nil, err
 	}
@@ -230,6 +238,12 @@ func build() (*conformance.Corpus, error) {
 			name:        "valid-data-dock-data-plane",
 			description: "complete Node data dock lease: three-segment principal, owner scope, Node ID and a STREAM ceiling only",
 			envelope:    validDataDock, expectedURI: dataURI, bundle: bundle, now: clockUnixS,
+			wantVerdict: "valid",
+		},
+		{
+			name:        "valid-client-data-plane",
+			description: "complete client lease: six-segment principal naming its Account, key thumbprint and instance, owner scope and Account only",
+			envelope:    validClient, expectedURI: dataURI, bundle: bundle, now: clockUnixS,
 			wantVerdict: "valid",
 		},
 		{
@@ -359,6 +373,12 @@ func build() (*conformance.Corpus, error) {
 		return nil, err
 	}
 	drafts = append(drafts, dataDockDrafts...)
+
+	clientDrafts, err := clientShapeDrafts(dataSigner, dataURI, bundle)
+	if err != nil {
+		return nil, err
+	}
+	drafts = append(drafts, clientDrafts...)
 
 	micropodDrafts, err := micropodShapeDrafts(dataSigner, dataURI, bundle)
 	if err != nil {
@@ -518,6 +538,47 @@ func dataDockShapeDrafts(signer *svidtest.SignerIdentity, dataURI string, bundle
 	drafts := make([]draft, 0, len(rows))
 	for _, row := range rows {
 		payload := dataDockPayload()
+		row.mutate(payload)
+		d, err := malformedDraft(signer, payload, row.name, row.description, dataURI, bundle)
+		if err != nil {
+			return nil, err
+		}
+		drafts = append(drafts, d)
+	}
+	return drafts, nil
+}
+
+// clientShapeDrafts covers the client lease profile: the principal is
+// exactly /account/{account}/client/{keyThumbprint}/instance/{instance},
+// account_id matches it, the thumbprint and instance are in their one
+// spelling, no other kind's field is present, the plane is data, and the
+// interval is at most one hour.
+func clientShapeDrafts(signer *svidtest.SignerIdentity, dataURI string, bundle []*x509.Certificate) ([]draft, error) {
+	rows := []struct {
+		name        string
+		description string
+		mutate      func(p *apb.ZoneAdmissionLeasePayload)
+	}{
+		{"client-account-principal-mismatch", "account_id disagrees with the principal's account segment",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.AccountId = "acct-2" }},
+		{"client-account-absent", "the Account is required",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.AccountId = "" }},
+		{"client-principal-extra-segment", "a client principal is exactly six segments",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.Principal += "/x" }},
+		{"client-thumbprint-malformed", "the key thumbprint is 43 characters of unpadded base64url",
+			func(p *apb.ZoneAdmissionLeasePayload) {
+				p.Principal = "spiffe://z1.zone.example.com/account/acct-1/client/abc/instance/01954e20-7540-7ec4-93ec-14f783e6ab50"
+			}},
+		{"client-carries-subnet", "a client is bound to no subnet, node, pod, session or share",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.SubnetId = "subnet-1" }},
+		{"client-control-plane", "a client is a data-plane endpoint",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.FabricPlane = mpb.Plane_PLANE_CONTROL }},
+		{"client-over-one-hour", "a client interval is at most one hour",
+			func(p *apb.ZoneAdmissionLeasePayload) { p.NotAfterUnixS = p.IssuedAtUnixS + 3_601 }},
+	}
+	drafts := make([]draft, 0, len(rows))
+	for _, row := range rows {
+		payload := clientPayload()
 		row.mutate(payload)
 		d, err := malformedDraft(signer, payload, row.name, row.description, dataURI, bundle)
 		if err != nil {
@@ -753,6 +814,27 @@ func sharePayload() *apb.ZoneAdmissionLeasePayload {
 		AdapterClasses:       wire.LaneClassStream | wire.LaneClassIngressTarget,
 		LaneClassCeiling:     wire.LaneClassStream | wire.LaneClassIngressTarget,
 		PolicyProfile:        "share-default",
+		PolicyProfileVersion: 1,
+		NotBeforeUnixS:       1_700_000_000,
+		NotAfterUnixS:        1_700_003_660,
+		IssuedAtUnixS:        1_700_000_060,
+	}
+}
+
+func clientPayload() *apb.ZoneAdmissionLeasePayload {
+	return &apb.ZoneAdmissionLeasePayload{
+		Version:              apb.PayloadVersion,
+		LeaseId:              bytes.Repeat([]byte{7}, apb.LeaseIDBytes),
+		Zone:                 "z1",
+		FabricPlane:          mpb.Plane_PLANE_DATA,
+		Principal:            "spiffe://z1.zone.example.com/account/acct-1/client/NzbLsXh8uDCcd-6MNwXF4W_7noWXFZAfHkxZsRGC9Xs/instance/01954e20-7540-7ec4-93ec-14f783e6ab50",
+		SubjectSpkiSha256:    bytes.Repeat([]byte{8}, apb.SHA256Bytes),
+		EndpointKind:         mpb.EndpointKind_ENDPOINT_KIND_CLIENT,
+		OwnerScope:           "account/acct-1",
+		AccountId:            "acct-1",
+		AdapterClasses:       wire.LaneClassStream,
+		LaneClassCeiling:     wire.LaneClassStream,
+		PolicyProfile:        "client-default",
 		PolicyProfileVersion: 1,
 		NotBeforeUnixS:       1_700_000_000,
 		NotAfterUnixS:        1_700_003_660,
