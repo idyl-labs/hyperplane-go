@@ -19,6 +19,7 @@ import (
 	"crypto/ecdsa"
 	"crypto/ed25519"
 	"crypto/sha256"
+	"encoding/base64"
 	"encoding/binary"
 	"errors"
 	"fmt"
@@ -50,6 +51,7 @@ const (
 	sharePrincipalSegments           = 2
 	// dataDockPrincipalSegments is node, the Node ID, and data-dock.
 	dataDockPrincipalSegments = 3
+	clientPrincipalSegments   = 6
 )
 
 // Admission refusal classes. The lease, payload, binding and dock proof
@@ -237,7 +239,8 @@ func ValidateZoneAdmissionLeasePayload(payload *apb.ZoneAdmissionLeasePayload, n
 		payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_POD &&
 		payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_SESSION &&
 		payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_SHARE &&
-		payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_DATA_DOCK {
+		payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_DATA_DOCK &&
+		payload.GetEndpointKind() != mpb.EndpointKind_ENDPOINT_KIND_CLIENT {
 		return fmt.Errorf("%w: unknown dynamic endpoint kind %d", ErrAdmissionMalformed, payload.GetEndpointKind())
 	}
 	for name, value := range map[string]string{
@@ -323,6 +326,13 @@ func ValidateZoneAdmissionLeasePayload(payload *apb.ZoneAdmissionLeasePayload, n
 		if payload.GetNotAfterUnixS()-payload.GetIssuedAtUnixS() > uint64(apb.MaxDataDockLeaseLifetime.Seconds()) {
 			return fmt.Errorf("%w: data dock interval exceeds %s", ErrAdmissionMalformed, apb.MaxDataDockLeaseLifetime)
 		}
+	case mpb.EndpointKind_ENDPOINT_KIND_CLIENT:
+		if err := validateClientLeaseProfile(payload, principal); err != nil {
+			return err
+		}
+		if payload.GetNotAfterUnixS()-payload.GetIssuedAtUnixS() > uint64(apb.MaxClientLeaseLifetime.Seconds()) {
+			return fmt.Errorf("%w: client interval exceeds %s", ErrAdmissionMalformed, apb.MaxClientLeaseLifetime)
+		}
 	}
 	return nil
 }
@@ -346,9 +356,10 @@ func ValidateZoneAdmissionLeaseBinding(payload *apb.ZoneAdmissionLeasePayload, p
 		return fmt.Errorf("%w: lease outlives signer", ErrAdmissionBinding)
 	}
 	if payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_POD || payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_SESSION ||
-		payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_SHARE || payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_DATA_DOCK {
+		payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_SHARE || payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_DATA_DOCK ||
+		payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_CLIENT {
 		if payload.GetNotAfterUnixS() != peer.SVIDNotAfterUnixS {
-			return fmt.Errorf("%w: pod/session/share/data dock lease deadline differs from SVID", ErrAdmissionBinding)
+			return fmt.Errorf("%w: pod/session/share/data dock/client lease deadline differs from SVID", ErrAdmissionBinding)
 		}
 	}
 	if payload.GetEndpointKind() == mpb.EndpointKind_ENDPOINT_KIND_SESSION {
@@ -591,6 +602,43 @@ func validateDataDockLeaseProfile(p *apb.ZoneAdmissionLeasePayload, principal ad
 		return fmt.Errorf("%w: data dock principal does not match lease", ErrAdmissionMalformed)
 	}
 	return nil
+}
+
+// validateClientLeaseProfile enforces the client: the data plane, an owner
+// scope, an Account that the principal's account segment matches byte for
+// byte, a key thumbprint and an instance in their one spelling, and no
+// field of another kind. A principal with any other segment count is
+// refused before any value is read.
+func validateClientLeaseProfile(p *apb.ZoneAdmissionLeasePayload, principal admissionPrincipal) error {
+	if p.GetFabricPlane() != mpb.Plane_PLANE_DATA {
+		return fmt.Errorf("%w: client lease names the control plane", ErrAdmissionMalformed)
+	}
+	if err := requireText(p.GetOwnerScope(), "owner_scope"); err != nil {
+		return err
+	}
+	if err := requireText(p.GetAccountId(), "account_id"); err != nil {
+		return err
+	}
+	if p.GetSubnetId() != "" || p.GetNamespaceId() != "" || p.GetWorkloadId() != "" ||
+		p.GetNodeId() != "" || p.GetPodId() != "" || p.GetPodInstanceId() != "" || p.GetAssignmentGeneration() != 0 ||
+		p.GetSessionId() != "" || p.GetSessionKind() != mpb.SessionKind_SESSION_KIND_UNSPECIFIED ||
+		p.GetSessionLeg() != mpb.SessionLeg_SESSION_LEG_UNSPECIFIED || p.GetGrantId() != "" ||
+		p.GetMicropodSequence() != 0 || p.GetShareId() != "" || p.GetNodeAdmission() != apb.NodeAdmission_NODE_ADMISSION_UNSPECIFIED {
+		return fmt.Errorf("%w: client lease carries fields from another kind", ErrAdmissionMalformed)
+	}
+	s := principal.segments
+	if len(s) != clientPrincipalSegments || s[0] != "account" || s[1] != p.GetAccountId() || s[2] != "client" ||
+		!isKeyThumbprint(s[3]) || s[4] != "instance" || !isCanonicalUUID(s[5]) {
+		return fmt.Errorf("%w: client principal does not match lease", ErrAdmissionMalformed)
+	}
+	return nil
+}
+
+// isKeyThumbprint reports whether value is an RFC 7638 SHA-256 thumbprint
+// in its one spelling: 43 characters of unpadded base64url.
+func isKeyThumbprint(value string) bool {
+	decoded, err := base64.RawURLEncoding.Strict().DecodeString(value)
+	return len(value) == 43 && err == nil && len(decoded) == 32
 }
 
 func isCanonicalUUID(value string) bool {
