@@ -29,11 +29,11 @@ var testHost = [16]byte{0x11, 0x11, 0x11, 0x11, 0x11, 0x11, 0x41, 0x11, 0x81, 0x
 
 // goldens reads testdata/golden.txt: name, a tab, then lowercase hex. The
 // same file pins every other implementation of this contract.
-func goldens(t testing.TB) map[string][]byte {
-	t.Helper()
+func goldens(tb testing.TB) map[string][]byte {
+	tb.Helper()
 	file, err := os.Open(filepath.Join("testdata", "golden.txt"))
 	if err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	defer func() { _ = file.Close() }()
 	out := make(map[string][]byte)
@@ -41,16 +41,16 @@ func goldens(t testing.TB) map[string][]byte {
 	for scanner.Scan() {
 		name, encoded, ok := strings.Cut(scanner.Text(), "\t")
 		if !ok {
-			t.Fatalf("golden line %q is not name<TAB>hex", scanner.Text())
+			tb.Fatalf("golden line %q is not name<TAB>hex", scanner.Text())
 		}
 		raw, err := hex.DecodeString(encoded)
 		if err != nil {
-			t.Fatalf("golden %s: %v", name, err)
+			tb.Fatalf("golden %s: %v", name, err)
 		}
 		out[name] = raw
 	}
 	if err := scanner.Err(); err != nil {
-		t.Fatal(err)
+		tb.Fatal(err)
 	}
 	return out
 }
