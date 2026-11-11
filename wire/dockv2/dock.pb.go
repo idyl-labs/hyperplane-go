@@ -393,13 +393,11 @@ type LaneAttached struct {
 	PeerPrincipal string                 `protobuf:"bytes,2,opt,name=peer_principal,json=peerPrincipal,proto3" json:"peer_principal,omitempty"` // advisory only; never used for admission
 	// Lane classes granted at establishment, as a bitset. The bits share the
 	// adapter-class bit space and are never reassigned:
-	//
-	//	bit 2, stream: native QUIC bidirectional streams may attach.
-	//	bit 3, flow: datagram flows may attach.
-	//	bit 4, ingress target: the lane may carry ingress listener traffic
-	//	  to this dock.
-	//	bit 5, splice leg: this dock may be one leg of a two-dock lane.
-	//
+	//   bit 2, stream: native QUIC bidirectional streams may attach.
+	//   bit 3, flow: datagram flows may attach.
+	//   bit 4, ingress target: the lane may carry ingress listener traffic
+	//     to this dock.
+	//   bit 5, splice leg: this dock may be one leg of a two-dock lane.
 	// The edge grants exactly the requested set or refuses the lane; it never
 	// grants a narrower set.
 	LaneClass     uint64 `protobuf:"varint,3,opt,name=lane_class,json=laneClass,proto3" json:"lane_class,omitempty"`

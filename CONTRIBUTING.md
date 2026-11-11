@@ -13,7 +13,7 @@ not code changes.
 
 ## Development
 
-You need Go 1.26.6 or later and Git. Every check CI runs is available
+You need Go 1.27.4 or later and Git. Every check CI runs is available
 locally:
 
 ```sh
