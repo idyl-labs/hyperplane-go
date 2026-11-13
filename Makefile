@@ -18,7 +18,7 @@ export GOWORK := off
 
 # Tool versions are pinned so that local runs and CI agree. Bump a version in
 # its own change so that any new findings are reviewed on their own.
-GOLANGCI_LINT := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.12.2
+GOLANGCI_LINT := github.com/golangci/golangci-lint/v2/cmd/golangci-lint@v2.14.0
 GOVULNCHECK   := golang.org/x/vuln/cmd/govulncheck@v1.8.0
 ADDLICENSE    := github.com/google/addlicense@v1.2.0
 BUF           := github.com/bufbuild/buf/cmd/buf@v1.70.0
