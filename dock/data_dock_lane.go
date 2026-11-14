@@ -35,7 +35,7 @@ import (
 // a client opens one per connection to a Computer, of class
 // wire.LaneStreamClassE2EMTLS, whose attribution header is a
 // wire/datadock.Header. metadata is opaque application data, never identity
-// or authority.
+// or authority: at most 1,024 bytes; a larger request is refused.
 //
 // An edge refusal is a NakError. The returned lane has received its
 // LaneAttached and is claimed from AcceptLane; its peer principal is

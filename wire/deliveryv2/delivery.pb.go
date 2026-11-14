@@ -429,7 +429,8 @@ func (x *OpenLane) GetMetadata() []byte {
 type OpenServiceLane struct {
 	state            protoimpl.MessageState `protogen:"open.v1"`
 	ServicePrincipal string                 `protobuf:"bytes,1,opt,name=service_principal,json=servicePrincipal,proto3" json:"service_principal,omitempty"`
-	// Opaque application metadata delivered in LaneAttached, never identity.
+	// Opaque application metadata delivered in LaneAttached, never identity:
+	// at most 1,024 bytes; a larger request is refused.
 	Metadata      []byte `protobuf:"bytes,2,opt,name=metadata,proto3" json:"metadata,omitempty"`
 	unknownFields protoimpl.UnknownFields
 	sizeCache     protoimpl.SizeCache
@@ -765,7 +766,8 @@ func (x *Nak) GetCode() NakCode {
 // it does not permit learns nothing of whether the data dock is connected.
 // The edge answers LaneOpened, whose one target confirmation names the
 // principal and no generation, or Nak. Either end may open streams on the
-// lane. metadata is opaque to the fabric.
+// lane. metadata is opaque to the fabric: at most 1,024 bytes; a larger
+// request is refused.
 type OpenDataDockLane struct {
 	state           protoimpl.MessageState `protogen:"open.v1"`
 	TargetPrincipal string                 `protobuf:"bytes,1,opt,name=target_principal,json=targetPrincipal,proto3" json:"target_principal,omitempty"`

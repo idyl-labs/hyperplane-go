@@ -33,7 +33,8 @@ import (
 // to the selected Service connection for its whole life. Only the Node
 // opens streams on the lane; the Service accepts each stream and replies on
 // it, but cannot open a stream toward the Node. metadata is opaque
-// application data, never identity or authority.
+// application data, never identity or authority: at most 1,024 bytes; a
+// larger request is refused.
 //
 // The negotiated profile must be wire.NodeServiceLaneProfile. A missing or
 // unknown profile is refused locally with NAK_CODE_ADAPTER_MISMATCH and no
