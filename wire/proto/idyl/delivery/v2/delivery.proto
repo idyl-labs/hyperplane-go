@@ -131,7 +131,8 @@ message OpenLane {
 // This request creates no locator, identity claim or third-party lane.
 message OpenServiceLane {
   string service_principal = 1;
-  // Opaque application metadata delivered in LaneAttached, never identity.
+  // Opaque application metadata delivered in LaneAttached, never identity:
+  // at most 1,024 bytes; a larger request is refused.
   bytes metadata = 2;
 }
 
@@ -187,7 +188,8 @@ message Nak {
 // it does not permit learns nothing of whether the data dock is connected.
 // The edge answers LaneOpened, whose one target confirmation names the
 // principal and no generation, or Nak. Either end may open streams on the
-// lane. metadata is opaque to the fabric.
+// lane. metadata is opaque to the fabric: at most 1,024 bytes; a larger
+// request is refused.
 message OpenDataDockLane {
   string target_principal = 1;
   bytes metadata = 2;
