@@ -178,9 +178,8 @@
 // lane carries one stream, opened by the client, and ends when that stream
 // ends; the Service answers on it. A client connection holds one such lane
 // to one Service at a time, and opens another once the lane ends or while it
-// drains. A Service
-// offers the profile by setting Config.ServiceTargetProfile to
-// wire.ClientServiceLaneProfile, and withdraws with WithdrawServiceTarget.
+// drains. A Service offers the profile by setting Config.ServiceTargetProfile
+// to wire.ClientServiceLaneProfile, and withdraws with WithdrawServiceTarget.
 //
 // # Transports
 //
