@@ -62,8 +62,9 @@ message DockWelcome {
   // activity at least this often, or the edge's idle timeout treats the
   // connection as dead.
   uint32 keepalive_ms = 2;
-  // Negotiated service-lane profile. Empty means unavailable. Support alone
-  // grants no requester or target authority.
+  // Negotiated service-lane profile: the profile a Service offered, or the
+  // profile this connection may request under. Empty means unavailable.
+  // Support alone grants no requester or target authority.
   string service_lane_profile = 3;
 }
 

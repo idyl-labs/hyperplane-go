@@ -202,6 +202,26 @@ message OpenDataDockLane {
 // credential, is welcomed.
 message WithdrawDataDockTarget {}
 
+// OpenClientServiceLane asks the edge for one STREAM lane from this client
+// to an eligible connection of the exact Service principal named, in the
+// client's Zone. Only an admitted client sends it, and only when its welcome
+// named the client-service-lanes/1 profile. It carries no locator. A signed
+// lane policy must permit the lane; the edge judges it before it looks for
+// the Service, so a client it does not permit learns nothing of whether the
+// Service is connected. The edge answers LaneOpened, whose one target
+// confirmation names the principal and no generation, or Nak. The lane stays
+// on the selected connection for its whole life. Only the client opens
+// streams on it, and one stream only: the lane ends when that stream ends,
+// and the client asks for a lane again. The Service answers on the same
+// bidirectional stream. The two ends authenticate each other through their
+// own end-to-end secured channel. metadata is opaque to the fabric and
+// delivered to the Service in LaneAttached: at most 1,024 bytes; a larger
+// request is refused.
+message OpenClientServiceLane {
+  string service_principal = 1;
+  bytes metadata = 2;
+}
+
 // RequesterToEdge is the requester's one verb on a delivery stream.
 message RequesterToEdge {
   oneof msg {
@@ -212,6 +232,7 @@ message RequesterToEdge {
     WithdrawServiceTarget withdraw_service_target = 6;
     OpenDataDockLane open_data_dock_lane = 7;
     WithdrawDataDockTarget withdraw_data_dock_target = 8;
+    OpenClientServiceLane open_client_service_lane = 9;
   }
   reserved 3;
   reserved "open_splice";

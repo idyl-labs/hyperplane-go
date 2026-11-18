@@ -69,10 +69,11 @@ type Config struct {
 
 	// ServiceTargetProfile opts this dock/2 Service connection into an exact
 	// service-target profile. Empty retains ordinary docking. The supported
-	// value is wire.NodeServiceLaneProfile; unknown values and dock/3 attempts
-	// are refused locally. The edge still authenticates the Service and judges
-	// every grant. An edge that does not negotiate the requested profile fails
-	// this opening without retrying an ordinary dock.
+	// values are wire.NodeServiceLaneProfile and wire.ClientServiceLaneProfile,
+	// one for each connection; unknown values and dock/3 attempts are refused
+	// locally. The edge still authenticates the Service and judges every
+	// grant. An edge that does not negotiate the requested profile fails this
+	// opening without retrying an ordinary dock.
 	ServiceTargetProfile string
 
 	// Predecessor names the client's previous generation, as reported by
@@ -185,7 +186,8 @@ func (e ErrOverloaded) Error() string {
 // handshake; canceling it after a successful return does not close the dock.
 func Open(ctx context.Context, cfg Config) (*Dock, error) {
 	if cfg.ServiceTargetProfile != "" {
-		if cfg.ServiceTargetProfile != wire.NodeServiceLaneProfile {
+		if cfg.ServiceTargetProfile != wire.NodeServiceLaneProfile &&
+			cfg.ServiceTargetProfile != wire.ClientServiceLaneProfile {
 			return nil, errors.New("dock: unsupported service target profile")
 		}
 		if cfg.Admission != nil {
