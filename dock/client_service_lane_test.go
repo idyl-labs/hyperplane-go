@@ -73,7 +73,7 @@ func TestClientServiceLaneRefusesLocallyWithoutTheNegotiatedProfile(t *testing.T
 // named principal, and carries a client-opened e2e-mtls stream with the
 // application's header, on both transports.
 func TestOpenClientServiceLaneOverBothTransports(t *testing.T) {
-	header := []byte("computer-events/json-v1")
+	header := []byte("example-events/1")
 	for _, transport := range edgeTransports {
 		t.Run(transport, func(t *testing.T) {
 			edge := newScriptedEdge(t, newTestPKI(t), transport, serviceWelcome(wire.ClientServiceLaneProfile))
