@@ -20,3 +20,12 @@ package wire
 // by itself. A Service offers it on its own dock/2 connection; withdrawal and
 // target selection always refer to that exact admitted connection generation.
 const NodeServiceLaneProfile = "node-service-lanes/1"
+
+// ClientServiceLaneProfile names the negotiated profile for admitted
+// clients to request STREAM lanes to exact authenticated Service
+// principals of their Zone. It changes no locator or endpoint admission
+// contract and grants no authority by itself. A Service offers it on its
+// own dock/2 connection, one profile for each connection; withdrawal and
+// target selection always refer to that exact admitted connection
+// generation.
+const ClientServiceLaneProfile = "client-service-lanes/1"

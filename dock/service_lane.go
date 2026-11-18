@@ -112,7 +112,8 @@ func (d *Dock) WithdrawServiceTarget(ctx context.Context) (err error) {
 	if d.control == nil {
 		return errors.New("dock: service withdrawal needs an admitted dock (use Open)")
 	}
-	if !d.serviceTarget || d.serviceLaneProfile != wire.NodeServiceLaneProfile {
+	if !d.serviceTarget || (d.serviceLaneProfile != wire.NodeServiceLaneProfile &&
+		d.serviceLaneProfile != wire.ClientServiceLaneProfile) {
 		return NakError{Code: dpb.NakCode_NAK_CODE_ADAPTER_MISMATCH}
 	}
 	s, watch, err := d.openDelivery(ctx)
