@@ -149,6 +149,8 @@ type Dock struct {
 
 	gen                dc.DockGen
 	grantedKeepalive   time.Duration
+	keepalivePeriod    time.Duration
+	idleTimeout        time.Duration
 	serviceLaneProfile string
 	serviceTarget      bool
 	node               bool // opened with dock/3 admission
@@ -196,15 +198,17 @@ func Open(ctx context.Context, cfg Config) (*Dock, error) {
 	if err != nil {
 		return nil, err
 	}
-	keepalive := time.Duration(cfg.KeepaliveMs) * time.Millisecond
-	if keepalive == 0 {
-		keepalive = 20 * time.Second // transport keepalive and idle basis when no cadence is requested
-	}
+	keepalive := transportKeepalive(cfg)
 	conn, transport, err := dialTransport(ctx, cfg, keepalive)
 	if err != nil {
 		return nil, err
 	}
-	return openDock(ctx, cfg, conn, transport, signerPublic)
+	d, err := openDock(ctx, cfg, conn, transport, signerPublic)
+	if err != nil {
+		return nil, err
+	}
+	d.keepalivePeriod, d.idleTimeout = transportLiveness(cfg, transport, keepalive)
+	return d, nil
 }
 
 func openDock(ctx context.Context, cfg Config, conn transportConn, transport string, signerPublic ed25519.PublicKey) (_ *Dock, resultErr error) {
@@ -474,6 +478,24 @@ func (d *Dock) Gen() dc.DockGen { return d.gen }
 
 // Keepalive is the keepalive cadence the edge granted.
 func (d *Dock) Keepalive() time.Duration { return d.grantedKeepalive }
+
+// KeepalivePeriod is the keepalive period of the dock's transport: the
+// period QUIC keeps an idle connection alive at, and the basis of
+// IdleTimeout on both transports. It is Config.KeepaliveMs, or 20 seconds
+// when that is zero, and zero when Config.DisableKeepalive is set. It is
+// the client's own setting, apart from the cadence the edge granted
+// (Keepalive).
+func (d *Dock) KeepalivePeriod() time.Duration { return d.keepalivePeriod }
+
+// IdleTimeout is how long the dock's transport waits with nothing received
+// from the edge before it ends the dock: three keepalive periods, counted
+// from Config.KeepaliveMs, or from 20 seconds when that is zero. The dock's
+// context ends with the transport, and every stream and lane on it fails.
+// On QUIC the timeout in force is the shorter of this and the edge's, and
+// never shorter than three probe timeouts of the path. It is zero on the
+// fallback with Config.DisableKeepalive set, which then never ends a dock
+// for silence.
+func (d *Dock) IdleTimeout() time.Duration { return d.idleTimeout }
 
 // ServiceLaneProfile is the profile reported by this dock's authenticated
 // edge. Empty means unavailable. It reports support, never identity, admission
