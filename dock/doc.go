@@ -29,6 +29,10 @@
 //
 //	Gen        the generation the edge assigned to this dock
 //	Keepalive  the keepalive cadence the edge granted
+//	KeepalivePeriod
+//	           the transport's own keepalive period
+//	IdleTimeout
+//	           the silence after which the transport ends the dock
 //	Transport  the transport the dock uses (wire.TransportQUIC or
 //	           wire.TransportTCPFallback)
 //	Resumed    whether the TLS handshake resumed an earlier session

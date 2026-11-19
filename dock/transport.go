@@ -250,6 +250,41 @@ const (
 	defaultMaxConnectionReceiveWindow = 64 << 20 // 64 MiB per dock connection
 )
 
+// defaultTransportKeepalive is the transport's keepalive period when
+// Config.KeepaliveMs is zero.
+const defaultTransportKeepalive = 20 * time.Second
+
+// idleTimeoutKeepalives is a transport's idle timeout in keepalive
+// periods: a path is declared dead after this many periods with nothing
+// received, so one or two lost keepalives do not end a dock.
+const idleTimeoutKeepalives = 3
+
+// transportKeepalive is the keepalive period cfg gives the dock's
+// transport, and the basis of its idle timeout: Config.KeepaliveMs, or
+// defaultTransportKeepalive when that is zero.
+func transportKeepalive(cfg Config) time.Duration {
+	if cfg.KeepaliveMs == 0 {
+		return defaultTransportKeepalive
+	}
+	return time.Duration(cfg.KeepaliveMs) * time.Millisecond
+}
+
+// transportLiveness is the keepalive period and the idle timeout transport
+// runs with for cfg, keepalive being the period transportKeepalive gave.
+// It is the one source of both: the transports are configured from it and
+// the dock reports it. DisableKeepalive stops the keepalive on both
+// transports and, on the fallback, the client's own idle detection too.
+func transportLiveness(cfg Config, transport string, keepalive time.Duration) (period, idle time.Duration) {
+	period, idle = keepalive, idleTimeoutKeepalives*keepalive
+	if cfg.DisableKeepalive {
+		period = 0
+		if transport == wire.TransportTCPFallback {
+			idle = 0
+		}
+	}
+	return period, idle
+}
+
 // quicConfig is the dock's QUIC configuration: the keepalive cadence, the
 // flow-control ceilings and the inbound stream bound.
 func quicConfig(cfg Config, keepalive time.Duration) *quic.Config {
@@ -261,9 +296,10 @@ func quicConfig(cfg Config, keepalive time.Duration) *quic.Config {
 	if connWin == 0 {
 		connWin = defaultMaxConnectionReceiveWindow
 	}
+	period, idle := transportLiveness(cfg, wire.TransportQUIC, keepalive)
 	quicConf := &quic.Config{
-		KeepAlivePeriod: keepalive,
-		MaxIdleTimeout:  3 * keepalive,
+		KeepAlivePeriod: period,
+		MaxIdleTimeout:  idle,
 		EnableDatagrams: true,
 		// These raise the flow-control ceilings only: quic-go grows its
 		// windows from small initial values toward these maxima as a
@@ -271,9 +307,6 @@ func quicConfig(cfg Config, keepalive time.Duration) *quic.Config {
 		// matter on long or fast paths and rarely on a local one.
 		MaxStreamReceiveWindow:     streamWin,
 		MaxConnectionReceiveWindow: connWin,
-	}
-	if cfg.DisableKeepalive {
-		quicConf.KeepAlivePeriod = 0
 	}
 	if cfg.MaxIncomingStreams > 0 {
 		quicConf.MaxIncomingStreams = cfg.MaxIncomingStreams
@@ -351,10 +384,7 @@ func dialFallback(ctx context.Context, cfg Config, keepalive time.Duration) (tra
 		_ = raw.Close()
 		return nil, fmt.Errorf("dock: fallback handshake: %w", err)
 	}
-	idle := 3 * keepalive
-	if cfg.DisableKeepalive {
-		idle = 0 // DisableKeepalive also turns off the client's own idle detection
-	}
+	_, idle := transportLiveness(cfg, wire.TransportTCPFallback, keepalive)
 	return &fallbackTransportConn{
 		conn: fallback.Client(tc, idle),
 		tls:  tc.ConnectionState(),
