@@ -45,8 +45,9 @@ message DockHello {
 message DockWelcome {
   idyl.membership.v2.DockGen gen = 1;
   uint32 keepalive_ms = 2;
-  // Negotiated service-lane profile, as in dock/2. The admission lease and
-  // explicit service-lane grant remain the source of requester authority.
+  // Negotiated service-lane profile: the profile a Service offered, or the
+  // profile this connection may request under. Empty means unavailable.
+  // Support alone grants no requester or target authority.
   string service_lane_profile = 3;
 }
 

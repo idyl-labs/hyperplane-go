@@ -204,8 +204,9 @@ type DockWelcome struct {
 	state       protoimpl.MessageState `protogen:"open.v1"`
 	Gen         *commonv2.DockGen      `protobuf:"bytes,1,opt,name=gen,proto3" json:"gen,omitempty"`
 	KeepaliveMs uint32                 `protobuf:"varint,2,opt,name=keepalive_ms,json=keepaliveMs,proto3" json:"keepalive_ms,omitempty"`
-	// Negotiated service-lane profile, as in dock/2. The admission lease and
-	// explicit service-lane grant remain the source of requester authority.
+	// Negotiated service-lane profile: the profile a Service offered, or the
+	// profile this connection may request under. Empty means unavailable.
+	// Support alone grants no requester or target authority.
 	ServiceLaneProfile string `protobuf:"bytes,3,opt,name=service_lane_profile,json=serviceLaneProfile,proto3" json:"service_lane_profile,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache

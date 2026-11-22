@@ -216,8 +216,9 @@ type DockWelcome struct {
 	// activity at least this often, or the edge's idle timeout treats the
 	// connection as dead.
 	KeepaliveMs uint32 `protobuf:"varint,2,opt,name=keepalive_ms,json=keepaliveMs,proto3" json:"keepalive_ms,omitempty"`
-	// Negotiated service-lane profile. Empty means unavailable. Support alone
-	// grants no requester or target authority.
+	// Negotiated service-lane profile: the profile a Service offered, or the
+	// profile this connection may request under. Empty means unavailable.
+	// Support alone grants no requester or target authority.
 	ServiceLaneProfile string `protobuf:"bytes,3,opt,name=service_lane_profile,json=serviceLaneProfile,proto3" json:"service_lane_profile,omitempty"`
 	unknownFields      protoimpl.UnknownFields
 	sizeCache          protoimpl.SizeCache
