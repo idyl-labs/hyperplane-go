@@ -336,6 +336,58 @@ func TestOpenReportsWelcomeAndClosesWithDrainCode(t *testing.T) {
 	}
 }
 
+// A dock reports the keepalive period and the idle timeout its transport
+// runs with, whatever cadence the edge granted: the requested period and
+// three of them, 20 seconds and three of them when none is requested, and
+// with keepalives disabled no period, QUIC's idle timeout unchanged and no
+// idle detection on the fallback.
+func TestOpenReportsTheTransportLiveness(t *testing.T) {
+	cases := []struct {
+		name        string
+		keepaliveMs uint32
+		disable     bool
+		period      time.Duration
+		idle        map[string]time.Duration
+	}{
+		{name: "requested", keepaliveMs: 9_000, period: 9 * time.Second,
+			idle: map[string]time.Duration{wire.TransportQUIC: 27 * time.Second, wire.TransportTCPFallback: 27 * time.Second}},
+		{name: "default", period: 20 * time.Second,
+			idle: map[string]time.Duration{wire.TransportQUIC: time.Minute, wire.TransportTCPFallback: time.Minute}},
+		{name: "disabled", disable: true,
+			idle: map[string]time.Duration{wire.TransportQUIC: time.Minute, wire.TransportTCPFallback: 0}},
+	}
+	for _, transport := range edgeTransports {
+		for _, tc := range cases {
+			t.Run(transport+"/"+tc.name, func(t *testing.T) {
+				edge := newScriptedEdge(t, newTestPKI(t), transport, welcome(12_000))
+				cfg := edge.config()
+				cfg.KeepaliveMs, cfg.DisableKeepalive = tc.keepaliveMs, tc.disable
+				d, _ := edge.open(cfg)
+				if got := d.KeepalivePeriod(); got != tc.period {
+					t.Errorf("KeepalivePeriod = %s, want %s", got, tc.period)
+				}
+				if got, want := d.IdleTimeout(), tc.idle[transport]; got != want {
+					t.Errorf("IdleTimeout = %s, want %s", got, want)
+				}
+			})
+		}
+	}
+}
+
+// The QUIC configuration takes its keepalive period and idle timeout from
+// the source the dock reports, so the two cannot drift apart.
+func TestQUICConfigTakesTheReportedLiveness(t *testing.T) {
+	for _, cfg := range []Config{{}, {KeepaliveMs: 7_000}, {DisableKeepalive: true}} {
+		keepalive := transportKeepalive(cfg)
+		period, idle := transportLiveness(cfg, wire.TransportQUIC, keepalive)
+		q := quicConfig(cfg, keepalive)
+		if q.KeepAlivePeriod != period || q.MaxIdleTimeout != idle {
+			t.Errorf("quicConfig(%+v) = period %s, idle %s; the dock reports %s, %s",
+				cfg, q.KeepAlivePeriod, q.MaxIdleTimeout, period, idle)
+		}
+	}
+}
+
 // An Overloaded frame is the edge's typed refusal: Open returns
 // ErrOverloaded with the edge's retry hint on both transports, and never
 // tries the other transport, because a refusal is an answer.
