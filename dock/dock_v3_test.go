@@ -152,6 +152,7 @@ type openingConn struct {
 }
 
 func (*openingConn) OpenStreamSync(context.Context) (transportStream, error) { panic("unused") }
+func (*openingConn) OpenStream() (transportStream, error)                    { panic("unused") }
 func (*openingConn) AcceptStream(context.Context) (transportStream, error)   { panic("unused") }
 func (*openingConn) AcceptUniStream(context.Context) (transportReceiveStream, error) {
 	panic("unused")

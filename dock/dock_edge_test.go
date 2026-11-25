@@ -69,6 +69,14 @@ type edgeSession struct {
 // the session is then handed to the test on conns.
 func newScriptedEdge(t *testing.T, pki *testPKI, transport string, reply func(*edgeSession) error) *scriptedEdge {
 	t.Helper()
+	return newScriptedEdgeGranting(t, pki, transport, 0, reply)
+}
+
+// newScriptedEdgeGranting is newScriptedEdge with the QUIC edge granting
+// each connection streams bidirectional streams at once, or quic-go's
+// default when streams is zero. The fallback has no stream limit.
+func newScriptedEdgeGranting(t *testing.T, pki *testPKI, transport string, streams int64, reply func(*edgeSession) error) *scriptedEdge {
+	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
 	e := &scriptedEdge{t: t, pki: pki, transport: transport, conns: make(chan *edgeSession, 4), ctx: ctx}
 	var mu sync.Mutex
@@ -96,7 +104,7 @@ func newScriptedEdge(t *testing.T, pki *testPKI, transport string, reply func(*e
 	switch transport {
 	case wire.TransportQUIC:
 		serverTLS.NextProtos = []string{"idyl/2"}
-		ln, err := quic.ListenAddr("127.0.0.1:0", serverTLS, &quic.Config{EnableDatagrams: true})
+		ln, err := quic.ListenAddr("127.0.0.1:0", serverTLS, &quic.Config{EnableDatagrams: true, MaxIncomingStreams: streams})
 		if err != nil {
 			t.Fatalf("quic listen: %v", err)
 		}

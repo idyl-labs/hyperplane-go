@@ -175,6 +175,10 @@ func (c *laneConn) OpenStreamSync(context.Context) (transportStream, error) {
 	return s, nil
 }
 
+func (c *laneConn) OpenStream() (transportStream, error) {
+	return c.OpenStreamSync(context.Background())
+}
+
 func (c *laneConn) AcceptStream(ctx context.Context) (transportStream, error) {
 	select {
 	case s := <-c.accepts:

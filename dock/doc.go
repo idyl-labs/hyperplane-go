@@ -90,6 +90,12 @@
 // transparent byte pipe. A lane ends exactly once; Lane.Closed then fires
 // and Lane.CloseCause reports why. An ended lane never comes back.
 //
+// Every stream the dock has open, on any lane or none, counts against the
+// edge's stream limit for the connection. On QUIC, Lane.OpenStream waits
+// for credit while the limit is reached; Lane.TryOpenStream returns
+// ErrStreamCredit instead, so a caller that holds streams it can end may
+// end one and then wait, rather than wait without knowing why.
+//
 // A lane granted wire.LaneClassFlow also carries flows: best-effort
 // datagrams sent with Lane.SendFlow and received with Lane.ReceiveFlow,
 // each tagged with a flow id the sender chooses. Flows need QUIC. Each

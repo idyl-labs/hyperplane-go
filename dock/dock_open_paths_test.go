@@ -397,6 +397,9 @@ func (c *scriptConn) OpenStreamSync(context.Context) (transportStream, error) {
 	}
 	return c.control, nil
 }
+func (c *scriptConn) OpenStream() (transportStream, error) {
+	return c.OpenStreamSync(context.Background())
+}
 func (c *scriptConn) AcceptStream(ctx context.Context) (transportStream, error) {
 	<-c.ctx.Done()
 	return nil, c.ctx.Err()

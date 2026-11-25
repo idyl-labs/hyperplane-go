@@ -39,6 +39,7 @@ import (
 type rpcConn struct{ s transportStream }
 
 func (c *rpcConn) OpenStreamSync(context.Context) (transportStream, error) { return c.s, nil }
+func (c *rpcConn) OpenStream() (transportStream, error)                    { return c.s, nil }
 func (c *rpcConn) AcceptStream(context.Context) (transportStream, error)   { panic("not used") }
 func (c *rpcConn) AcceptUniStream(context.Context) (transportReceiveStream, error) {
 	panic("not used")
