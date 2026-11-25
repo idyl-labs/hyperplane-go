@@ -79,6 +79,17 @@ type LaneTargetConfirm struct {
 // ended lane never comes back; a new association needs a new lane.
 var ErrLaneClosed = errors.New("dock: lane closed")
 
+// ErrStreamCredit is returned by TryOpenStream when the edge's stream
+// limit allows this dock no new stream at that moment. The edge grants the
+// limit per connection, across every stream the dock has open, and raises
+// it as the dock's streams end: a stream returns its credit once the edge
+// has seen both of its directions finish or be reset, so credit comes back
+// at least one round trip after the stream closes. The TCP+TLS fallback
+// grants no credit ahead of an open: the edge refuses a stream past its
+// limit with wire.DockCodeOverloaded on the stream itself, as OpenStream
+// describes, so ErrStreamCredit is never returned there.
+var ErrStreamCredit = errors.New("dock: no stream credit")
+
 // Lane is one lane attached to this dock, live or ended, as announced by
 // a LaneAttached frame on the dock's control stream.
 type Lane struct {
@@ -137,7 +148,28 @@ func (l *Lane) CloseCause() dockpb.LaneCloseCause { return l.cause }
 // (wire.LaneCodeDraining, wire.DockCodeOverloaded or wire.DockCodeProtocol)
 // that surfaces on the returned stream's reads and writes; such a code
 // informs per-stream retry only and says nothing about the lane.
+//
+// On QUIC, OpenStream waits while the edge's stream limit allows no new
+// stream, behind any OpenStream already waiting, and returns when credit
+// arrives, ctx is done or the dock ends. TryOpenStream does not wait.
 func (l *Lane) OpenStream(ctx context.Context, class byte, hdr []byte) (*LaneStream, error) {
+	return l.openStream(class, hdr, func() (transportStream, error) { return l.dock.conn.OpenStreamSync(ctx) })
+}
+
+// TryOpenStream is OpenStream without the wait for stream credit: when
+// the edge's stream limit allows no new stream at once, or an OpenStream
+// is already waiting for credit, it returns ErrStreamCredit and opens
+// nothing. A caller that can free credit, by ending streams it no longer
+// needs, does so and then waits for the credit with OpenStream under a
+// context of its own bound; that wait is served in turn with every other
+// OpenStream waiting on the dock.
+func (l *Lane) TryOpenStream(class byte, hdr []byte) (*LaneStream, error) {
+	return l.openStream(class, hdr, l.dock.conn.OpenStream)
+}
+
+// openStream encodes the attribution header, opens a stream with open and
+// writes the header to it.
+func (l *Lane) openStream(class byte, hdr []byte, open func() (transportStream, error)) (*LaneStream, error) {
 	// Encode before opening so a value with no legal wire form costs no
 	// stream, and fail locally on an ended lane, which the edge would
 	// refuse with DockCodeProtocol.
@@ -150,7 +182,7 @@ func (l *Lane) OpenStream(ctx context.Context, class byte, hdr []byte) (*LaneStr
 		return nil, fmt.Errorf("%w (%s)", ErrLaneClosed, l.cause)
 	default:
 	}
-	s, err := l.dock.conn.OpenStreamSync(ctx)
+	s, err := open()
 	if err != nil {
 		return nil, err
 	}

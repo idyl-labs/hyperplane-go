@@ -72,6 +72,10 @@ type transportDatagramConn interface {
 // transportConn is one dock-side connection on either transport.
 type transportConn interface {
 	OpenStreamSync(ctx context.Context) (transportStream, error)
+	// OpenStream opens a bidirectional stream without waiting for stream
+	// credit: it fails with ErrStreamCredit when the peer's stream limit
+	// allows no new stream at once.
+	OpenStream() (transportStream, error)
 	AcceptStream(ctx context.Context) (transportStream, error)
 	AcceptUniStream(ctx context.Context) (transportReceiveStream, error)
 	// SendKeepalive emits one unit of transport activity (a datagram on
@@ -92,6 +96,18 @@ type quicTransportConn struct{ conn *quic.Conn }
 func (q quicTransportConn) OpenStreamSync(ctx context.Context) (transportStream, error) {
 	s, err := q.conn.OpenStreamSync(ctx)
 	if err != nil {
+		return nil, err
+	}
+	return QUICStream{s}, nil
+}
+
+func (q quicTransportConn) OpenStream() (transportStream, error) {
+	s, err := q.conn.OpenStream()
+	if err != nil {
+		var limit *quic.StreamLimitReachedError
+		if errors.As(err, &limit) || errors.As(err, new(quic.StreamLimitReachedError)) {
+			return nil, ErrStreamCredit
+		}
 		return nil, err
 	}
 	return QUICStream{s}, nil
@@ -177,6 +193,13 @@ type fallbackTransportConn struct {
 
 func (f *fallbackTransportConn) OpenStreamSync(ctx context.Context) (transportStream, error) {
 	return f.conn.OpenStreamSync(ctx)
+}
+
+// OpenStream opens a stream as OpenStreamSync does: the fallback grants
+// no stream credit ahead of an open, so an open never waits for it; the
+// edge refuses a stream past its limit on the stream itself.
+func (f *fallbackTransportConn) OpenStream() (transportStream, error) {
+	return f.conn.OpenStreamSync(context.Background())
 }
 
 func (f *fallbackTransportConn) AcceptStream(ctx context.Context) (transportStream, error) {

@@ -40,6 +40,7 @@ type acceptConn struct {
 }
 
 func (c *acceptConn) OpenStreamSync(context.Context) (transportStream, error) { panic("not used") }
+func (c *acceptConn) OpenStream() (transportStream, error)                    { panic("not used") }
 func (c *acceptConn) AcceptStream(ctx context.Context) (transportStream, error) {
 	if c.taken {
 		<-ctx.Done()
