@@ -199,8 +199,8 @@ func TestTryOpenStreamWritesAttributionThenPipes(t *testing.T) {
 	_ = op.ls.Close()
 }
 
-// The fallback has no stream limit: TryOpenStream never reports
-// ErrStreamCredit there.
+// The fallback grants no stream credit ahead of an open: TryOpenStream
+// never reports ErrStreamCredit there.
 func TestTryOpenStreamOnTheFallbackNeverMeetsALimit(t *testing.T) {
 	lane := creditLane(t, wire.TransportTCPFallback, 0)
 	for i := range 128 {

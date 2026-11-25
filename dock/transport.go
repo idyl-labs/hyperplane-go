@@ -195,8 +195,9 @@ func (f *fallbackTransportConn) OpenStreamSync(ctx context.Context) (transportSt
 	return f.conn.OpenStreamSync(ctx)
 }
 
-// OpenStream opens a stream as OpenStreamSync does: the fallback has no
-// stream limit, so an open never waits for credit.
+// OpenStream opens a stream as OpenStreamSync does: the fallback grants
+// no stream credit ahead of an open, so an open never waits for it; the
+// edge refuses a stream past its limit on the stream itself.
 func (f *fallbackTransportConn) OpenStream() (transportStream, error) {
 	return f.conn.OpenStreamSync(context.Background())
 }

@@ -84,8 +84,10 @@ var ErrLaneClosed = errors.New("dock: lane closed")
 // limit per connection, across every stream the dock has open, and raises
 // it as the dock's streams end: a stream returns its credit once the edge
 // has seen both of its directions finish or be reset, so credit comes back
-// at least one round trip after the stream closes. On the TCP+TLS fallback,
-// which has no stream limit, it is never returned.
+// at least one round trip after the stream closes. The TCP+TLS fallback
+// grants no credit ahead of an open: the edge refuses a stream past its
+// limit with wire.DockCodeOverloaded on the stream itself, as OpenStream
+// describes, so ErrStreamCredit is never returned there.
 var ErrStreamCredit = errors.New("dock: no stream credit")
 
 // Lane is one lane attached to this dock, live or ended, as announced by

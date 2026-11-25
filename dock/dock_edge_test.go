@@ -74,7 +74,7 @@ func newScriptedEdge(t *testing.T, pki *testPKI, transport string, reply func(*e
 
 // newScriptedEdgeGranting is newScriptedEdge with the QUIC edge granting
 // each connection streams bidirectional streams at once, or quic-go's
-// default when streams is zero. The fallback has no stream limit.
+// default when streams is zero. The scripted fallback edge sets no limit.
 func newScriptedEdgeGranting(t *testing.T, pki *testPKI, transport string, streams int64, reply func(*edgeSession) error) *scriptedEdge {
 	t.Helper()
 	ctx, cancel := context.WithCancel(context.Background())
